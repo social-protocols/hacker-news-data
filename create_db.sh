@@ -12,7 +12,7 @@ main() {
 }
 
 import-dataset() {
-	pv "$DATASET" | sqlite3 "$SQLITEDB" --init import-dataset.sql
+	pv "$DATASET" | tail -n +2 | sqlite3 "$SQLITEDB" --init import-dataset.sql
 	# pv "$OUT/title.ratings.tsv.gz" | gzip -d | sqlite3 "$SQLITEDB" --init import-imdb-ratings.sql
     # cat import-movielens-tags.sql | sqlite3 "$SQLITEDB" -init <(echo)
 	# cat process-data.sql |

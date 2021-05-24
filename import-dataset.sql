@@ -32,7 +32,7 @@ create index id_tick_idx on dataset(id, tick);
 create view gain as select id, score, tick, score-(lag(score) over (partition by id order by tick)) as gain from dataset;
 
 .mode csv
-.import --skip 1 /dev/stdin dataset
+.import /dev/stdin dataset
 
 .headers off
 
