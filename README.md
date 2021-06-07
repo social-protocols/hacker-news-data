@@ -31,6 +31,6 @@ numbers in square brackets refer to resources
 
 ## Resources
 
-[1] https://news.ycombinator.com/item?id=9219581\
-[2] https://www.kaggle.com/felixdietze/notebook9816d54b59\
-[3] https://github.com/fdietze/downvote-scoring
+[1] https://news.ycombinator.com/item?id=9219581  
+[2] https://www.kaggle.com/felixdietze/notebook9816d54b59  
+[3] https://github.com/fdietze/downvote-scoring 
