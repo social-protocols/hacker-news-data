@@ -1,3 +1,4 @@
 .osfcli.config
 *.sqlite
 *.csv
+.Rproj.user
