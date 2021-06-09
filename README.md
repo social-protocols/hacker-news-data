@@ -16,7 +16,7 @@ numbers in square brackets refer to resources
 
 ## Connect to Database with R
 
-* see `r-db-connection.Rmd`
+* see `R/r-db-connection.Rmd`
 
 
 ## Next Steps
@@ -34,3 +34,19 @@ numbers in square brackets refer to resources
 [1] https://news.ycombinator.com/item?id=9219581  
 [2] https://www.kaggle.com/felixdietze/notebook9816d54b59  
 [3] https://github.com/fdietze/downvote-scoring 
+
+
+## Prerequisites
+
+* Julia 
+
+    * DataFrames.jl
+    * Glob.jl
+    * CSV.jl
+
+* sqlite3
+* R
+
+    * DBI (for sqlite connection)
+    * dplyr
+    * ggplot2
