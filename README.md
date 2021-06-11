@@ -29,6 +29,11 @@ numbers in square brackets refer to resources
     * 90-9-1 rule applies? Zipf's law?  
 
 
+## Problems
+
+* missing values are ambiguous for some of the ranks (first period: missing -> not sampled; from second period on: missing -> not ranked)
+
+
 ## Resources
 
 [1] https://news.ycombinator.com/item?id=9219581  

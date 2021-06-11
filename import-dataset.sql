@@ -36,19 +36,19 @@ CREATE TABLE dataset (
 
 
 
-select "topRank -1 -> NULL";
+select "topRank convert NULL";
 update dataset set topRank = null where topRank = "NULL";
-select "newRank -1 -> NULL";
+select "newRank convert NULL";
 update dataset set newRank = null where newRank = "NULL";
-select "bestRank -1 -> NULL";
+select "bestRank convert NULL";
 update dataset set bestRank = null where bestRank = "NULL";
-select "askRank -1 -> NULL";
+select "askRank convert NULL";
 update dataset set askRank = null where askRank = "NULL";
-select "showRank -1 -> NULL";
+select "showRank convert NULL";
 update dataset set showRank = null where showRank = "NULL";
-select "jobRank -1 -> NULL";
+select "jobRank convert NULL";
 update dataset set jobRank = null where jobRank = "NULL";
-select "score -1 -> NULL";
+select "score convert NULL";
 update dataset set score = null where score = "NULL";
 
 SELECT "Creating indices...";

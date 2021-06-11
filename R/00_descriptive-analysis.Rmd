@@ -13,6 +13,8 @@ library(ggplot2)
 
 con <- RSQLite::dbConnect(RSQLite::SQLite(), file.path("..", "hacker-news-dataset.sqlite"))
 
+Sys.setlocale("LC_TIME", "C")
+
 ```
 
 
@@ -62,8 +64,6 @@ tbl(con, "dataset") %>%
 
 ### Number of sampled stories
 
-**Number of unique stories (overall):**
-
 ```{r}
 
 n_unique_stories <- tbl(con, "dataset") %>% 
@@ -72,18 +72,16 @@ n_unique_stories <- tbl(con, "dataset") %>%
   data.frame() %>% 
   nrow()
 
-```
-
-**Number of full stories (observed for their entire runs):**
-
-```{r}
-
-tbl(con, "fullstories") %>% 
+n_fullstories <- tbl(con, "fullstories") %>% 
   distinct() %>% 
   data.frame() %>% 
   nrow()
 
 ```
+
+**Number of unique stories (overall):** `r n_unique_stories`  
+**Number of full stories (observed for their entire runs):** `r n_fullstories`
+
 
 
 ### Sampling timeframe
@@ -93,9 +91,21 @@ tbl(con, "fullstories") %>%
 tbl(con, "dataset") %>% 
   select(sampleTime) %>% 
   distinct() %>% 
-  data.frame() %>% 
-  ggplot(aes(x = sampleTime)) +
-  geom_histogram()
+  data.frame() %>%
+  mutate(sampleTimeDT = lubridate::as_datetime(sampleTime)) %>% 
+  ggplot(aes(x = sampleTimeDT)) +
+  geom_histogram(
+    fill = "darkblue", 
+    color = "white", 
+    binwidth = 60 * 60 * 24 * 7  # grouped by week (binwidth works with seconds)
+  ) +
+  labs(
+    title = "Sampling Volume over Time",
+    x = "Date of Sampling",
+    y = "Number of Samples",
+    caption = "each bin contains a week"
+  ) +
+  theme_classic()
 
 ```
 
@@ -116,7 +126,13 @@ example_story <- tbl(con, "dataset") %>%
 example_story %>%
   mutate(sampleTimeDT = lubridate::as_datetime(sampleTime)) %>% 
   ggplot(aes(x = sampleTimeDT, y = score)) +
-  geom_line()
+  geom_line() +
+  labs(
+    title = "Lifecycle of an Average Successful Story",
+    x = "Time of Sampling",
+    y = "Votes"
+  ) +
+  theme_classic()
 
 ```
 
