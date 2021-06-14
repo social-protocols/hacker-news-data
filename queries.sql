@@ -10,3 +10,7 @@ PRAGMA mmap_size = 30000000000;
 
 select "Daily votes arrival";
 select avg(daygain) from (select date(sampleTime, 'unixepoch'), min(gain), max(gain), sum(gain) as daygain, count(distinct tick) from dataset where samplingWindow >= 3 group by date(sampleTime, 'unixepoch') having count(distinct tick) > 1400);
+
+
+
+    select topRank, min(gain), max(gain), sum(gain) as rankgain, count(distinct tick) from dataset where samplingWindow >= 3 group by topRank having count(distinct tick) > 1400 order by topRank;
