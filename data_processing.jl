@@ -12,6 +12,15 @@ column_names = [
     "topRank", "newRank", "bestRank", "askRank", "showRank", "jobRank"
 ]
 
+# construct CSV file to append to
+struc_data = Dict()
+for cn in column_names
+    struc_data[Symbol(cn)] = Int64[]
+end
+struc_data = DataFrame(struc_data)
+select!(struc_data, [Symbol(cn) for cn in column_names])
+CSV.write("hacker-news-dataset.csv", struc_data)
+
 # column names to rename
 column_rename_map = [
     :rank => :topRank,
@@ -20,48 +29,31 @@ column_rename_map = [
 ]
 
 # merge datasets
-begin
-    dataset_list = DataFrame[]
-    for (i, f) in enumerate(files)
-        dataset = DataFrame(CSV.File(f))
-        allowmissing!(dataset)
+for (i, f) in enumerate(files)
+    # load raw dataset
+    dataset = DataFrame(CSV.File(f, missingstring = "\\N", type = Int64, silencewarnings = true))
     
-        # reformat data to match final scheme
-        dataset[!, :samplingWindow] .= i
-        for new_name_pair in column_rename_map
-            try
-                rename!(dataset, new_name_pair)
-            catch
-            end
+    # reformat data to match final scheme
+    dataset[!, :samplingWindow] .= i
+    for new_name_pair in column_rename_map
+        try
+            rename!(dataset, new_name_pair)
+        catch
         end
-        if !("tick" in names(dataset))
-            dataset[!, :tick] .= -1
-            dataset = groupby(dataset, :sampleTime)
-            for (j, g) in enumerate(dataset)
-                g.tick .= j
-            end
-            dataset = vcat(dataset..., cols = :union)
-        end    
-        for col in column_names
-            if !(col in names(dataset))
-                dataset[!, col] .= -1
-            end
-        end
-        
-        # replace all missing data by -1 (makes type inference easier)
-        for col in names(dataset)
-            replace!(dataset[!, col], "\\N" => "-1")
-            dataset[!, col] = coalesce.(dataset[!, col], -1)
-            if !(eltype(dataset[!, col]) == Int64)
-                overwrite_col = parse.(Int64, dataset[!, col])
-                dataset[!, col] = overwrite_col    
-            end
-        end
-    
-        push!(dataset_list, deepcopy(dataset))
     end
-    
-    dataset_final = vcat(dataset_list..., cols = :setequal)
-end
+    if !("tick" in names(dataset))
+        dataset[!, :tick] .= -1
+        dataset = groupby(dataset, :sampleTime)
+        for (j, g) in enumerate(dataset)
+            g.tick .= j
+        end
+        dataset = vcat(dataset..., cols = :orderequal)
+    end
+    dataset = vcat(struc_data, dataset, cols = :union)
 
-CSV.write(joinpath("data", "hacker-news-dataset.csv"), dataset_final)
+    # append to compiled file
+    CSV.write("hacker-news-dataset.csv", dataset, append = true, missingstring = "NULL")
+
+    # clear memory
+    dataset = nothing
+end

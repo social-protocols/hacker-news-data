@@ -11,12 +11,12 @@ PRAGMA mmap_size = 30000000000;
 CREATE TABLE dataset (
     id integer not null,
     score integer,
-    topRank integer,
     descendants integer not null,
     submissionTime integer not null,
     sampleTime integer not null,
-    samplingWindow integer not null,
     tick integer not null,
+    samplingWindow integer not null,
+    topRank integer,
     newRank integer,
     bestRank integer,
     askRank integer,
@@ -35,14 +35,21 @@ CREATE TABLE dataset (
 
 
 
--- TODO: why are there id = -1
 
-select "topRank -1 -> NULL";
-update dataset set topRank = null where topRank = -1;
-select "newRank -1 -> NULL";
-update dataset set newRank = null where newRank = -1;
-select "score -1 -> NULL";
-update dataset set score = null where score = -1;
+select "topRank convert NULL";
+update dataset set topRank = null where topRank = "NULL";
+select "newRank convert NULL";
+update dataset set newRank = null where newRank = "NULL";
+select "bestRank convert NULL";
+update dataset set bestRank = null where bestRank = "NULL";
+select "askRank convert NULL";
+update dataset set askRank = null where askRank = "NULL";
+select "showRank convert NULL";
+update dataset set showRank = null where showRank = "NULL";
+select "jobRank convert NULL";
+update dataset set jobRank = null where jobRank = "NULL";
+select "score convert NULL";
+update dataset set score = null where score = "NULL";
 
 SELECT "Creating indices...";
 create index sampleTime_id_idx on dataset(sampleTime, id);
@@ -50,7 +57,7 @@ create index id_sampleTime_idx on dataset(id, sampleTime);
 create index id_age_idx on dataset(id,sampleTime-submissionTime);
 create index date_idx on dataset(date(sampleTime, 'unixepoch'));
 
-delete from dataset where id = -1;
+# delete from dataset where id = -1;
 
 
 SELECT "Calculating fullstories...";

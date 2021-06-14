@@ -9,6 +9,7 @@ PRAGMA mmap_size = 30000000000;
 .output
 
 select "Daily votes arrival";
+-- only take fully sampled days (1 sample / min): count(distinct tick) > 1400
 select avg(daygain) from (select date(sampleTime, 'unixepoch'), min(gain), max(gain), sum(gain) as daygain, count(distinct tick) from dataset where samplingWindow >= 3 group by date(sampleTime, 'unixepoch') having count(distinct tick) > 1400);
 
 
