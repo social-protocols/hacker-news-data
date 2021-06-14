@@ -56,15 +56,40 @@ create index sampleTime_id_idx on dataset(sampleTime, id);
 create index id_sampleTime_idx on dataset(id, sampleTime);
 create index id_age_idx on dataset(id,sampleTime-submissionTime);
 create index date_idx on dataset(date(sampleTime, 'unixepoch'));
+create index topRank_idx on dataset(topRank);
 
 # delete from dataset where id = -1;
 
 
 SELECT "Calculating fullstories...";
 create table fullstories as select distinct id from dataset where (sampleTime-submissionTime) < 180;
+create unique index fullstories_id_idx on fullstories(id);
 
 
 SELECT "Calculating gain...";
 alter table dataset add column gain integer;
 update dataset as d set gain = (select gain from (select id, sampleTime, (score-lag(score) over (partition by id order by sampleTime)) as gain from dataset) where id = d.id and sampleTime = d.sampleTime);
 
+SELECT "toprank gain...";
+create table topRankGain as select topRank, avg(gain) as sumGain from dataset where topRank is not null group by topRank order by topRank;
+create unique index toprankgain_toprank_idx on toprankgain(toprank);
+
+alter table dataset add column usualTopRankGain integer;
+update dataset as d set usualTopRankGain = (select sumGain from topRankGain trg where d.topRank = trg.topRank);
+
+
+SELECT "quality...";
+create table quality as
+    select d.id,
+        avg(cast(gain as real) / usualTopRankGain) as quality,
+        max(score) as score,
+        min(topRank) as bestTopRank,
+        count(*) as samples
+    from dataset d join fullstories f on d.id = f.id
+    where
+        samplingWindow >= 3
+        and gain is not null
+        and usualTopRankGain is not null
+    group by d.id;
+create unique index qality_id_idx on quality(id);
+create index quality_quality_idx on quality(quality);
