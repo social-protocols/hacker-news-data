@@ -1,0 +1,153 @@
+---
+title: "Dataset Description"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(DBI)
+library(dplyr)
+library(ggplot2)
+
+con <- RSQLite::dbConnect(RSQLite::SQLite(), file.path("..", "hacker-news-dataset.sqlite"))
+
+Sys.setlocale("LC_TIME", "C")
+
+```
+
+
+
+
+
+### Overview
+
+```{r}
+
+tbl(con, "dataset") %>% 
+  head(10)
+
+```
+
+
+### What data did we sample?
+
+```{r}
+
+tbl(con, "dataset") %>% 
+  head() %>%
+  data.frame() %>% 
+  names()
+
+```
+
+**Explanation:**
+
+  * `id`: identifier
+  * `score`: number of votes obtained at that timeslice
+  * `topRank`: rank on hacker news *front* page
+  * `descendants`: number of first level comments (not including comments on comments)
+  * `submissionTime`: timestamp of submission of item
+  * `sampleTime`: timestamp of retrieval
+  * `samplingWindow`: the scraper ran over four distinct continuous periods, this variable designates the sampling period that the respective sample belongs to
+  * `tick`: convenience column for later simulation; assings a continuous numbering to the sampling timestamps
+  * `newRank`: rank on hacker news *new* page
+  * `bestRank`: rank on hacker news *best* page
+  * `askRank`: rank on hacker news *ask* page
+  * `showRank`: rank on hacker news *show* page
+  * `jobRank`: rank on hacker news *job* page
+  * `gain`: number of votes gained since the last `sampleTime`
+  
+
+
+
+### Number of sampled stories
+
+```{r}
+
+n_unique_stories <- tbl(con, "dataset") %>% 
+  select(id) %>% 
+  distinct() %>% 
+  data.frame() %>% 
+  nrow()
+
+n_fullstories <- tbl(con, "fullstories") %>% 
+  distinct() %>% 
+  data.frame() %>% 
+  nrow()
+
+```
+
+**Number of unique stories (overall):** `r n_unique_stories`  
+**Number of full stories (observed for their entire runs):** `r n_fullstories`
+
+
+
+### Sampling timeframe
+
+```{r}
+
+tbl(con, "dataset") %>% 
+  select(sampleTime) %>% 
+  distinct() %>% 
+  data.frame() %>%
+  mutate(sampleTimeDT = lubridate::as_datetime(sampleTime)) %>% 
+  ggplot(aes(x = sampleTimeDT)) +
+  geom_histogram(
+    fill = "darkblue", 
+    color = "white", 
+    binwidth = 60 * 60 * 24 * 7  # grouped by week (binwidth works with seconds)
+  ) +
+  labs(
+    title = "Sampling Volume over Time",
+    x = "Date of Sampling",
+    y = "Number of Samples",
+    caption = "each bin contains a week"
+  ) +
+  theme_classic()
+
+```
+
+
+### Example story
+
+```{r example-story}
+
+example_story <- tbl(con, "dataset") %>% 
+  filter(id == 26660877) %>% 
+  data.frame()
+
+```
+
+
+```{r example-story-score-over-time}
+
+example_story %>%
+  mutate(sampleTimeDT = lubridate::as_datetime(sampleTime)) %>% 
+  ggplot(aes(x = sampleTimeDT, y = score)) +
+  geom_line() +
+  labs(
+    title = "Lifecycle of an Average Successful Story",
+    x = "Time of Sampling",
+    y = "Votes"
+  ) +
+  theme_classic()
+
+```
+
+
+
+
+
+
+
+# Disconnect from Database
+
+```{r db-disconnect}
+
+RSQLite::dbDisconnect(conn = con)
+
+```
+
+
