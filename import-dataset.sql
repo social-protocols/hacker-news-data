@@ -71,7 +71,7 @@ alter table dataset add column gain integer;
 update dataset as d set gain = (select gain from (select id, sampleTime, (score-lag(score) over (partition by id order by sampleTime)) as gain from dataset) where id = d.id and sampleTime = d.sampleTime);
 
 SELECT "toprank gain...";
-create table topRankGain as select topRank, avg(gain) as sumGain from dataset where topRank is not null group by topRank order by topRank;
+create table topRankGain as select topRank, avg(gain) as avgGain from dataset d join fullstories f on d.id = f.id where topRank is not null and samplingWindow >= 3 group by topRank order by topRank;
 create unique index toprankgain_toprank_idx on toprankgain(toprank);
 
 alter table dataset add column usualTopRankGain integer;
@@ -81,15 +81,16 @@ update dataset as d set usualTopRankGain = (select sumGain from topRankGain trg 
 SELECT "quality...";
 create table quality as
     select d.id,
-        avg(cast(gain as real) / usualTopRankGain) as quality,
+        cast(sum(gain) as real) / sum(trg.avgGain) as quality,
         max(score) as score,
-        min(topRank) as bestTopRank,
+        min(d.topRank) as bestTopRank,
         count(*) as samples
-    from dataset d join fullstories f on d.id = f.id
+    from dataset d
+    join fullstories f on d.id = f.id
+    join topRankGain trg on trg.topRank = d.topRank
     where
         samplingWindow >= 3
         and gain is not null
-        and usualTopRankGain is not null
     group by d.id;
 create unique index qality_id_idx on quality(id);
 create index quality_quality_idx on quality(quality);
