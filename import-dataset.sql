@@ -65,8 +65,6 @@ create index id_age_idx on dataset(id,sampleTime-submissionTime);
 create index id_sampleTime_idx on dataset(id, sampleTime); -- TODO: should be a unique index, but there are many entries with duplicate sampleTime but different tick
 
 
-.eqp on -- explain all query plans
-
 
 SELECT "Calculating fullstories...";
 create table fullstories as select distinct id from dataset where (sampleTime-submissionTime) < 180;
