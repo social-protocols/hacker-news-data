@@ -99,7 +99,7 @@ create table predictedGain as
     where gain is not null
     group by topRank, newRank, bestRank, askRank, showRank, jobRank, score, timeofday
     order by topRank, newRank, bestRank, askRank, showRank, jobRank, score, timeofday;
-create unique index predictedGain_idx on predictedGain(toprank, newrank, bestRank, score, timeofday);
+create unique index predictedGain_idx on predictedGain(toprank, newrank, bestRank, askRank, showRank, jobRank, score, timeofday);
 
 SELECT "quality...";
 create table quality as
