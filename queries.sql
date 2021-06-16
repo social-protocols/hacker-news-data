@@ -14,4 +14,3 @@ select avg(daygain) from (select date(sampleTime, 'unixepoch'), min(gain), max(g
 
 
 
-    select topRank, min(gain), max(gain), sum(gain) as rankgain, count(distinct tick) from dataset where samplingWindow >= 3 group by topRank having count(distinct tick) > 1400 order by topRank;
