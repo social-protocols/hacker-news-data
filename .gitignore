@@ -4,3 +4,5 @@
 .Rproj.user
 *.7z
 *.html
+.ipynb_checkpoints/
+*.ipynb
