@@ -92,7 +92,11 @@ create table predictedGain as
         ifnull(score, -1) as score,
         cast(strftime('%H', sampleTime, 'unixepoch') as int) as timeofday,
         --TODO: day of week
+        --TODO: descendants
+        --TODO: age
         avg(gain) as avgGain,
+        min(gain) as minGain,
+        max(gain) as maxGain,
         count(*) as samples
     from fullstories f
     join dataset d on d.id = f.id
@@ -108,6 +112,11 @@ create table quality as
         cast(sum(gain) as real) / sum(mg.avgGain) as qualityQuotient,
         cast(sum(gain) as real) - sum(mg.avgGain) as qualityDifference,
         (cast(sum(gain) as real) - sum(mg.avgGain)) / sum(gain) as qualityDifferenceNormalized,
+        (cast(sum(gain) as real) - sum(mg.avgGain)) / sum(mg.avgGain) as qualityDifferenceNormalized2,
+        avg((gain - mg.avgGain) / d.score) as localQuality,
+        avg((gain - mg.avgGain) / (mg.maxGain - mg.minGain)) as localQuality2,
+        avg((gain - mg.minGain) / (mg.maxGain - mg.minGain)) as localQuality3,
+        avg((gain - mg.minGain) / cast(1 + mg.maxGain - mg.minGain as real)) as localQuality4,
         max(d.score) as score,
         min(d.topRank) as bestTopRank,
         count(*) as samples,
@@ -125,6 +134,7 @@ create table quality as
         and mg.timeofday = cast(strftime('%H', sampleTime, 'unixepoch') as int)
     where
         gain is not null
+        and mg.samples >= 10
     group by f.id
     ;
 create unique index qality_id_idx on quality(id);
@@ -139,17 +149,17 @@ select *, 'https://news.ycombinator.com/item?id=' || id from quality where score
 -- select *, 'https://news.ycombinator.com/item?id=' || id from quality order by qualityDifference desc limit 10;
 -- select *, 'https://news.ycombinator.com/item?id=' || id from quality order by qualityDifference asc limit 10;
 
--- select d.*, gain, avgGain, samples
--- -- select d.*, sum(gain), sum(avgGain), samples
--- -- select d.*, sum(gain), sum(avgGain), min(samples), cast(sum(gain) as real) / sum(mg.avgGain), count(*) as samples
--- from fullstories f
--- join dataset d on d.id = f.id
--- join predictedgain mg on
---         mg.topRank  = ifnull(d.topRank, -1)
---     and mg.newRank  = ifnull(d.newRank, -1)
---     and mg.bestRank = ifnull(d.bestRank, -1)
---     and mg.score    = ifnull(d.score, -1)
-
--- where
---     -- gain is not null 
---     f.id = 26917289;
+create view qualitydetails as select d.*, avgGain, minGain, maxGain, samples
+-- select d.*, sum(gain), sum(avgGain), samples
+-- select d.*, sum(gain), sum(avgGain), min(samples), cast(sum(gain) as real) / sum(mg.avgGain), count(*) as samples
+from fullstories f
+join dataset d on d.id = f.id
+join predictedgain mg on
+            mg.topRank  = ifnull(d.topRank, -1)
+        and mg.newRank  = ifnull(d.newRank, -1)
+        and mg.bestRank = ifnull(d.bestRank, -1)
+        and mg.askRank  = ifnull(d.askRank, -1)
+        and mg.showRank = ifnull(d.showRank, -1)
+        and mg.jobRank  = ifnull(d.jobRank, -1)
+        and mg.score    = ifnull(d.score, -1)
+        and mg.timeofday = cast(strftime('%H', sampleTime, 'unixepoch') as int);

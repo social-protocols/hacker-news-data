@@ -1,6 +1,9 @@
 using DataFrames
 using Glob
 using CSV
+using ProgressMeter
+
+println("Preparing data processing...")
 
 # column names of final scheme
 COLUMN_NAMES = [
@@ -27,19 +30,6 @@ function update_column_names!(dataset)
     return dataset
 end
 
-# add a column enumerating the sampling time slices
-function add_tick!(dataset)
-    if !("tick" in names(dataset))
-        dataset[!, :tick] .= -1
-        dataset = groupby(dataset, :sampleTime)
-        for (j, g) in enumerate(dataset)
-            g.tick .= j - 1
-        end
-        dataset = vcat(dataset..., cols = :orderequal)
-    end
-    return dataset
-end
-
 # construct CSV file to append to
 struc_data = Dict()
 for cn in COLUMN_NAMES
@@ -52,19 +42,19 @@ CSV.write("hacker-news-dataset.csv", struc_data)
 # file names of all tsv files in the data directory
 files = glob("*.tsv", "data")
 
-# write initial dataset (first sampling window)
-hacker_news_exploratory = DataFrame(CSV.File(popfirst!(files), missingstring = "\\N", type = Int64, silencewarnings = true))
-CSV.write("hacker-news-exploratory.csv", hacker_news_exploratory, missingstring = "NULL")
+pbar = ProgressUnknown("Processing data..."; dt = 0.1, spinner = true)
 
 # merge datasets
 for (i, f) in enumerate(files)
+    ProgressMeter.next!(pbar)
+    
     # load raw dataset
     dataset = DataFrame(CSV.File(f, missingstring = "\\N", type = Int64, silencewarnings = true))
     
     # reformat data to match final scheme
     dataset[!, :samplingWindow] .= i
     update_column_names!(dataset)
-    add_tick!(dataset)
+    # add_tick!(dataset)
     
     # append to compiled file
     dataset = vcat(struc_data, dataset, cols = :union)
@@ -73,3 +63,4 @@ for (i, f) in enumerate(files)
     # clear memory
     dataset = nothing
 end
+ProgressMeter.finish!(pbar)
