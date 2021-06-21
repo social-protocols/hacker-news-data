@@ -117,6 +117,7 @@ create table quality as
         avg((gain - mg.avgGain) / (mg.maxGain - mg.minGain)) as localQuality2,
         avg((gain - mg.minGain) / (mg.maxGain - mg.minGain)) as localQuality3,
         avg((gain - mg.minGain) / cast(1 + mg.maxGain - mg.minGain as real)) as localQuality4,
+        (sum(gain) - sum(mg.minGain)) / cast(1 + sum(mg.maxGain) - sum(mg.minGain) as real) as localQuality5,
         max(d.score) as score,
         min(d.topRank) as bestTopRank,
         count(*) as samples,
