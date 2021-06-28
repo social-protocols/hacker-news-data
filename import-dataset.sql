@@ -79,21 +79,19 @@ update dataset set gain = 0 where gain is null and score = 1;
 
 
 SELECT "predicted gain...";
--- TODO: time of day: cast(strftime('%H', sampleTime, 'unixepoch') as int)
 -- we convert nulls to -1, to have a faster join. joins usually ignore null and need special treatment.
 create table predictedGain as
     select
-        ifnull(topRank, -1) as topRank,
-        ifnull(newRank, -1) as newRank,
-        ifnull(bestRank, -1) as bestRank,
-        ifnull(askRank, -1) as askRank,
-        ifnull(showRank, -1) as showRank,
-        ifnull(jobRank, -1) as jobRank,
-        ifnull(score, -1) as score,
-        cast(strftime('%H', sampleTime, 'unixepoch') as int) as timeofday,
-        --TODO: day of week
-        --TODO: descendants
-        --TODO: age
+        ifnull(pow(2, floor(log2(d.topRank))), -1) as topRankBin,
+        ifnull(pow(2, floor(log2(d.newRank))), -1) as newRankBin,
+        ifnull(pow(2, floor(log2(d.bestRank))), -1) as bestRankBin,
+        ifnull(pow(2, floor(log2(d.askRank))), -1) as askRankBin,
+        ifnull(pow(2, floor(log2(d.showRank))), -1) as showRankBin,
+        ifnull(pow(2, floor(log2(d.jobRank))), -1) as jobRankBin,
+        ifnull(pow(2, floor(log2(d.score))), -1) as scoreBin,
+        ifnull(pow(2, floor(log2(d.descendants))), -1) as descendantsBin,
+        cast(strftime('%H', sampleTime, 'unixepoch') as int)/4*4 as timeofdayBin,
+        cast(strftime('%w', sampleTime, 'unixepoch') as int) as dayofweekBin,
         avg(gain) as avgGain,
         min(gain) as minGain,
         max(gain) as maxGain,
@@ -101,9 +99,29 @@ create table predictedGain as
     from fullstories f
     join dataset d on d.id = f.id
     where gain is not null
-    group by topRank, newRank, bestRank, askRank, showRank, jobRank, score, timeofday
-    order by topRank, newRank, bestRank, askRank, showRank, jobRank, score, timeofday;
-create unique index predictedGain_idx on predictedGain(toprank, newrank, bestRank, askRank, showRank, jobRank, score, timeofday);
+    group by
+        topRankBin,
+        newRankBin,
+        bestRankBin,
+        askRankBin,
+        showRankBin,
+        jobRankBin,
+        scoreBin,
+        descendantsBin,
+        timeofdayBin,
+        dayofweekBin;
+create unique index predictedGain_idx on predictedGain(
+        topRankBin,
+        newRankBin,
+        bestRankBin,
+        askRankBin,
+        showRankBin,
+        jobRankBin,
+        scoreBin,
+        descendantsBin,
+        timeofdayBin,
+        dayofweekBin
+);
 
 SELECT "quality...";
 create table quality as
@@ -125,17 +143,19 @@ create table quality as
     from fullstories f
     join dataset d on d.id = f.id
     join predictedGain mg on
-            mg.topRank  = ifnull(d.topRank, -1)
-        and mg.newRank  = ifnull(d.newRank, -1)
-        and mg.bestRank = ifnull(d.bestRank, -1)
-        and mg.askRank  = ifnull(d.askRank, -1)
-        and mg.showRank = ifnull(d.showRank, -1)
-        and mg.jobRank  = ifnull(d.jobRank, -1)
-        and mg.score    = ifnull(d.score, -1)
-        and mg.timeofday = cast(strftime('%H', sampleTime, 'unixepoch') as int)
+            mg.topRankBin = ifnull(pow(2, floor(log2(d.topRank))), -1)
+        and mg.newRankBin = ifnull(pow(2, floor(log2(d.newRank))), -1)
+        and mg.bestRankBin = ifnull(pow(2, floor(log2(d.bestRank))), -1)
+        and mg.askRankBin = ifnull(pow(2, floor(log2(d.askRank))), -1)
+        and mg.showRankBin = ifnull(pow(2, floor(log2(d.showRank))), -1)
+        and mg.jobRankBin = ifnull(pow(2, floor(log2(d.jobRank))), -1)
+        and mg.scoreBin = ifnull(pow(2, floor(log2(d.score))), -1)
+        and mg.descendantsBin = ifnull(pow(2, floor(log2(d.descendants))), -1)
+        and mg.timeofdayBin = cast(strftime('%H', sampleTime, 'unixepoch') as int)/4*4
+        and mg.dayofweekBin = cast(strftime('%w', sampleTime, 'unixepoch') as int)
     where
         gain is not null
-        and mg.samples >= 10
+        and mg.samples >= 4
     group by f.id
     ;
 create unique index qality_id_idx on quality(id);
