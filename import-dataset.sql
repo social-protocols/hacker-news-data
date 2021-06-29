@@ -138,6 +138,8 @@ create table quality as
         (sum(gain) - sum(mg.minGain)) / cast(1 + sum(mg.maxGain) - sum(mg.minGain) as real) as localQuality5,
         max(d.score) as score,
         min(d.topRank) as bestTopRank,
+        sum(d.topRank) as sumTopRank,
+        avg(d.topRank) as avgTopRank,
         count(*) as samples,
         sum(mg.samples) as predictionSamples
     from fullstories f
