@@ -166,23 +166,29 @@ create index quality_qualityd_idx on quality(qualityDifference);
 create index quality_qualitydn_idx on quality(qualityDifferenceNormalized);
 
 -- to debug quality calculation:
-
-select *, 'https://news.ycombinator.com/item?id=' || id from quality where score >= 5 order by qualityDifferenceNormalized desc limit 10;
-select *, 'https://news.ycombinator.com/item?id=' || id from quality where score >= 5 order by qualityDifferenceNormalized asc limit 10;
--- select *, 'https://news.ycombinator.com/item?id=' || id from quality order by qualityDifference desc limit 10;
--- select *, 'https://news.ycombinator.com/item?id=' || id from quality order by qualityDifference asc limit 10;
-
-create view qualitydetails as select d.*, avgGain, minGain, maxGain, samples
+create view qualitydetails as select d.*, avgGain, minGain, maxGain, samples, (gain - mg.minGain) / cast(1 + mg.maxGain - mg.minGain as real) as localQuality4
 -- select d.*, sum(gain), sum(avgGain), samples
 -- select d.*, sum(gain), sum(avgGain), min(samples), cast(sum(gain) as real) / sum(mg.avgGain), count(*) as samples
 from fullstories f
 join dataset d on d.id = f.id
 join predictedgain mg on
-            mg.topRank  = ifnull(d.topRank, -1)
-        and mg.newRank  = ifnull(d.newRank, -1)
-        and mg.bestRank = ifnull(d.bestRank, -1)
-        and mg.askRank  = ifnull(d.askRank, -1)
-        and mg.showRank = ifnull(d.showRank, -1)
-        and mg.jobRank  = ifnull(d.jobRank, -1)
-        and mg.score    = ifnull(d.score, -1)
-        and mg.timeofday = cast(strftime('%H', sampleTime, 'unixepoch') as int);
+            mg.topRankBin = ifnull(pow(2, floor(log2(d.topRank))), -1)
+        and mg.newRankBin = ifnull(pow(2, floor(log2(d.newRank))), -1)
+        and mg.bestRankBin = ifnull(pow(2, floor(log2(d.bestRank))), -1)
+        and mg.askRankBin = ifnull(pow(2, floor(log2(d.askRank))), -1)
+        and mg.showRankBin = ifnull(pow(2, floor(log2(d.showRank))), -1)
+        and mg.jobRankBin = ifnull(pow(2, floor(log2(d.jobRank))), -1)
+        and mg.scoreBin = ifnull(pow(2, floor(log2(d.score))), -1)
+        and mg.descendantsBin = ifnull(pow(2, floor(log2(d.descendants))), -1)
+        and mg.timeofdayBin = cast(strftime('%H', sampleTime, 'unixepoch') as int)/4*4
+        and mg.dayofweekBin = cast(strftime('%w', sampleTime, 'unixepoch') as int);
+
+
+.mode column
+.headers on
+.nullvalue (NULL)
+SELECT "best stories:";
+select id, localQuality4, score, bestTopRank, avgTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality where score >= 5 order by localQuality4 desc limit 30;
+SELECT "worst stories:";
+select id, localQuality4, score, bestTopRank, avgTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality where score >= 5 order by localQuality4 asc  limit 30;
+
