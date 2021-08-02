@@ -36,9 +36,23 @@ CREATE TABLE dataset (
 .headers off
 
 
+
+select "sampling window summary:";
+select
+  samplingwindow,
+  count(*),
+  datetime(min(sampletime), 'unixepoch', 'localtime'),
+  datetime(max(sampletime), 'unixepoch', 'localtime'),
+  (max(sampletime) - min(sampletime)) / (3600*24) as days
+from dataset group by samplingwindow;
+
 -- TODO: remove from dataset itself instead of deleting here
 select "deleting old sampling windows";
 delete from dataset where samplingWindow < 3;
+
+select "deleting jobs";
+-- jobs never appear on the new-page and never receive any votes
+delete from dataset where id in (select distinct id from dataset where jobrank != "NULL");
 
 select "topRank convert NULL";
 update dataset set topRank = null where topRank = "NULL";
@@ -67,15 +81,31 @@ create index id_sampleTime_idx on dataset(id, sampleTime); -- TODO: should be a 
 
 
 SELECT "Calculating fullstories...";
-create table fullstories as select distinct id from dataset where (sampleTime-submissionTime) < 180;
+create table fullstories as
+select id
+  from dataset d
+  join (
+    select samplingwindow, max(sampletime) as windowEndTime from dataset group by samplingwindow
+  ) sw on d.samplingWindow = sw.samplingWindow
+  where d.submissionTime < sw.windowEndTime - (3600 * 24 * 2) -- keep submissions which were possible to track for at least 48h
+  group by d.id
+  having
+    min(sampletime - submissiontime) < 180 -- have samples close to submission time
+    and max(newRank) > 85 -- story made it through whole new-site
+    and count(*) > 50; -- story has at least 50 data points;
 create unique index fullstories_id_idx on fullstories(id);
 
 
 SELECT "Calculating gain...";
+-- score difference compared to previous sample point
 alter table dataset add column gain integer;
-update dataset as d set gain = (select (case when gain is null then null when gain >= 0 then gain else 0 end) from (select id, sampleTime, (score-lag(score) over (partition by id order by sampleTime)) as gain from dataset) where id = d.id and sampleTime = d.sampleTime);
--- when score is still 1, no upvotes can have happened before that
-update dataset set gain = 0 where gain is null and score = 1;
+update dataset as d set gain = (
+  select (case when gain is null then null when gain >= 0 then gain else 0 end)
+  from (select id, sampleTime, (score-lag(score) over (partition by id order by sampleTime)) as gain from dataset)
+  where id = d.id and sampleTime = d.sampleTime
+);
+-- default score is 1 (no upvotes). If it is >1 in the first sample, (score-1) is the gain.
+update dataset set gain = score - 1 where gain is null;
 
 
 SELECT "predicted gain...";
@@ -189,7 +219,8 @@ join predictedgain mg on
 .headers on
 .nullvalue (NULL)
 SELECT "best stories:";
-select id, localQuality4, score, bestTopRank, avgTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality where score >= 5 order by localQuality4 desc limit 30;
+select id, localQuality4, score, bestTopRank, avgTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality order by localQuality4 desc limit 30;
+select id, (localQuality4+localQuality5)/2, score, bestTopRank, avgTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality order by (localQuality4+localQuality5)/2 desc limit 30;
 SELECT "worst stories:";
-select id, localQuality4, score, bestTopRank, avgTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality where score >= 5 order by localQuality4 asc  limit 30;
+select id, localQuality5, score, bestTopRank, avgTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality order by localQuality5 asc  limit 30;
 

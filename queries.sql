@@ -12,5 +12,8 @@ select "Daily votes arrival";
 -- only take fully sampled days (1 sample / min): count(distinct tick) > 1400
 select avg(daygain) from (select date(sampleTime, 'unixepoch'), min(gain), max(gain), sum(gain) as daygain, count(distinct tick) from dataset where samplingWindow >= 3 group by date(sampleTime, 'unixepoch') having count(distinct tick) > 1400);
 
+-- quality distribution:
+select localQuality4, count(*), avg(score), min(bestTopRank), avg(bestTopRank), id from quality group by floor(localQuality4*100) limit 100;
+
 
 
