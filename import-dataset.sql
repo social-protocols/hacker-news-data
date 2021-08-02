@@ -131,10 +131,11 @@ create table quality as
         cast(sum(gain) as real) - sum(mg.avgGain) as qualityDifference,
         (cast(sum(gain) as real) - sum(mg.avgGain)) / sum(gain) as qualityDifferenceNormalized,
         (cast(sum(gain) as real) - sum(mg.avgGain)) / sum(mg.avgGain) as qualityDifferenceNormalized2,
+	-- quality formulas
         avg((gain - mg.avgGain) / d.score) as localQuality,
         avg((gain - mg.avgGain) / (mg.maxGain - mg.minGain)) as localQuality2,
         avg((gain - mg.minGain) / (mg.maxGain - mg.minGain)) as localQuality3,
-        avg((gain - mg.minGain) / cast(1 + mg.maxGain - mg.minGain as real)) as localQuality4,
+        avg((gain - mg.minGain) / cast(1 + mg.maxGain - mg.minGain as real)) as localQuality4, -- (gain - mingain) shift into full amplitude
         (sum(gain) - sum(mg.minGain)) / cast(1 + sum(mg.maxGain) - sum(mg.minGain) as real) as localQuality5,
         max(d.score) as score,
         min(d.topRank) as bestTopRank,
