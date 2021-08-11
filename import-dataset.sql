@@ -51,7 +51,7 @@ select "deleting old sampling windows";
 delete from dataset where samplingWindow < 3;
 
 select "deleting jobs";
--- jobs never appear on the new-page and never receive any votes
+-- jobs never appear on the new-page and never receive any votes, but may appear on the frontpage
 delete from dataset where id in (select distinct id from dataset where jobrank != "NULL");
 
 select "topRank convert NULL";
