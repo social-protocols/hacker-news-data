@@ -172,7 +172,9 @@ create table quality as
         sum(d.topRank) as sumTopRank,
         avg(d.topRank) as avgTopRank,
         count(*) as samples,
-        sum(mg.samples) as predictionSamples
+        sum(mg.samples) as predictionSamples,
+        max(d.score) / sum(1.0/d.topRank) as quality6,
+        sum(cast(d.gain as real) / d.topRank) as quality7
     from fullstories f
     join dataset d on d.id = f.id
     join predictedGain mg on
