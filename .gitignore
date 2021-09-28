@@ -6,3 +6,5 @@
 *.html
 .ipynb_checkpoints/
 *.ipynb
+*.svg
+*.png
