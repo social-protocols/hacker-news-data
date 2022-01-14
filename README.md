@@ -3,15 +3,12 @@
 numbers in square brackets refer to resources
 
 
-## Fetch Data from OSF
+## Get Data
 
-* get osfclient (command line tool for open science framework)
+* get [osfclient](https://github.com/osfclient/osfclient) (command line tool for open science framework): `pipenv install`
 * add OSF_TOKEN environment variable
-* osf init (you're going to be asked for your username and the project name)
-* `./fetch_data.sh` (you're going to be asked for your username and the project name)
-* `./create_db.sh`
-
-(later on, osf repo will be public, by which point we can delete `fetch_data.sh` and replace it with `fetch_data_public.sh`)
+* `pipenv run osf init` (you're going to be asked for your username and the project name)
+* `./run.sh` should fetch the data from osf and create the database in the `./data/` directory
 
 
 ## Connect to Database with R
@@ -26,7 +23,7 @@ numbers in square brackets refer to resources
 
     * How many unique users? 
     * How many votes total (per unit time)?
-    * 90-9-1 rule applies? Zipf's law?  
+    * 90-9-1 rule applies? Zipf's law?
 
 
 ## Problems
@@ -43,15 +40,9 @@ numbers in square brackets refer to resources
 
 ## Prerequisites
 
-* Julia 
-
-    * DataFrames.jl
-    * Glob.jl
-    * CSV.jl
-
+* osfclient
 * sqlite3
-* R
-
+* R:
     * DBI (for sqlite connection)
     * dplyr
     * ggplot2

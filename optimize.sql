@@ -1,6 +1,6 @@
 .headers off
-SELECT "analyze & optimize...";
-ANALYZE;
+select "Analyze & optimize...";
+analyze;
 PRAGMA optimize;
-SELECT "vacuum...";
+select "Vacuum...";
 VACUUM;

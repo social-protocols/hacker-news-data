@@ -1,102 +1,12 @@
 .bail on
-.output /dev/null
-PRAGMA foreign_keys = ON;
-PRAGMA journal_mode = OFF;
-PRAGMA synchronous = OFF;
-PRAGMA temp_store = MEMORY;
-PRAGMA cache_size = 10000;
-PRAGMA mmap_size = 30000000000;
-.output
 
-CREATE TABLE dataset (
-    id integer not null,
-    score integer,
-    descendants integer not null,
-    submissionTime integer not null,
-    sampleTime integer not null,
-    tick integer not null,
-    -- samplingWindow integer not null,
-    topRank integer,
-    newRank integer,
-    bestRank integer,
-    askRank integer,
-    showRank integer,
-    jobRank integer
-);
-
-
-.mode csv
-.import /dev/stdin dataset
-
-.headers off
-
-
--- select "sampling window summary:";
--- select
---   samplingwindow,
---   count(*),
---   datetime(min(sampletime), 'unixepoch', 'localtime'),
---   datetime(max(sampletime), 'unixepoch', 'localtime'),
---   (max(sampletime) - min(sampletime)) / (3600*24) as days
--- from dataset group by samplingwindow;
-
--- TODO: remove from dataset itself instead of deleting here
--- select "deleting old sampling windows";
--- delete from dataset where samplingWindow < 3;
-
-select "Deleting jobs...";
--- jobs never appear on the new-page and never receive any votes, but may appear on the frontpage
-delete from dataset where id in (select distinct id from dataset where jobrank != "\N");
-
-select "Converting NULL values...";
-update dataset set topRank = null where topRank = "NULL";
-update dataset set newRank = null where newRank = "NULL";
-update dataset set bestRank = null where bestRank = "NULL";
-update dataset set askRank = null where askRank = "NULL";
-update dataset set showRank = null where showRank = "NULL";
-update dataset set jobRank = null where jobRank = "NULL";
-update dataset set score = null where score = "NULL";
-update dataset set descendants = 0 where descendants = "NULL";
+drop table if exists predictedGain;
+drop table if exists quality;
+drop view if exists qualityDetails;
 
 
 
-
-select "Creating indices...";
-create index id_age_idx on dataset(id,sampleTime-submissionTime);
-create index id_sampleTime_idx on dataset(id, sampleTime); -- TODO: should be a unique index, but there are many entries with duplicate sampleTime but different tick
-
-
--- TODO: remove samplingWindow, i.e., rewrite this
-select "Calculating fullstories...";
-create table fullstories as
-select id
-  from dataset
-  -- join (
-  --   select samplingwindow, max(sampletime) as windowEndTime from dataset group by samplingwindow
-  -- ) sw on d.samplingWindow = sw.samplingWindow
-  -- where submissionTime < samplingStop - (3600 * 24 * 2) -- keep submissions which were possible to track for at least 48h
-  group by id
-  having
-    submissionTime < max(sampleTime) - (3600 * 24 * 2)
-    and min(sampleTime - submissionTime) < 180 -- have samples close to submission time
-    and max(newRank) > 85 -- story made it through whole new-site
-    and count(*) > 50; -- story has at least 50 data points;
-create unique index fullstories_id_idx on fullstories(id);
-
-
-select "Calculating gain...";
--- score difference compared to previous sample point
-alter table dataset add column gain integer;
-update dataset as d set gain = (
-  select (case when gain is null then null when gain >= 0 then gain else 0 end)
-  from (select id, sampleTime, (score-lag(score) over (partition by id order by sampleTime)) as gain from dataset)
-  where id = d.id and sampleTime = d.sampleTime
-);
--- first sample (first tick) is undefined because we don't know the gain
-delete from dataset where gain is null;
-
-
-SELECT "Predicted gain...";
+SELECT "predicted gain...";
 -- we convert nulls to -1, to have a faster join. joins usually ignore null and need special treatment.
 create table predictedGain as
     select
@@ -114,8 +24,7 @@ create table predictedGain as
         min(gain) as minGain,
         max(gain) as maxGain,
         count(*) as samples
-    from fullstories f
-    join dataset d on d.id = f.id
+    from dataset d 
     where gain is not null
     group by
         topRankBin,
@@ -141,7 +50,7 @@ create unique index predictedGain_idx on predictedGain(
         dayofweekBin
 );
 
-select "Quality...";
+SELECT "quality...";
 create table quality as
     select d.id,
         -- todo: what if sum(prediction) = 0 ? -> division by 0
@@ -177,15 +86,15 @@ create table quality as
         and mg.timeofdayBin = cast(strftime('%H', sampleTime, 'unixepoch') as int)/4*4
         and mg.dayofweekBin = cast(strftime('%w', sampleTime, 'unixepoch') as int)
     where
-        gain is not null
+        d.topRank is not null
         and mg.samples >= 4
     group by f.id
     ;
 create unique index quality_id_idx on quality(id);
-create index quality_quality_cq_idx on quality(cumulativeQuality);
-create index quality_quality_lq_idx on quality(localQuality);
-/* create index quality_qualityd_idx on quality(qualityDifference); */
-/* create index quality_qualitydn_idx on quality(qualityDifferenceNormalized); */
+create index quality_cumqualityq_idx on quality(cumulativeQuality);
+create index quality_locqualityq_idx on quality(localQuality);
+create index quality_qualityd_idx on quality(qualityDifference);
+create index quality_qualitydn_idx on quality(qualityDifferenceNormalized);
 
 -- to debug quality calculation:
 create view qualitydetails as select d.*, avgGain, minGain, maxGain, samples, 
@@ -204,6 +113,6 @@ join predictedgain mg on
         /* and mg.scoreBin = ifnull(pow(2, floor(log2(d.score))), -1) */
         /* and mg.descendantsBin = ifnull(pow(2, floor(log2(d.descendants))), -1) */
         and mg.timeofdayBin = cast(strftime('%H', sampleTime, 'unixepoch') as int)/4*4
-        and mg.dayofweekBin = cast(strftime('%w', sampleTime, 'unixepoch') as int);
-
-
+        and mg.dayofweekBin = cast(strftime('%w', sampleTime, 'unixepoch') as int)
+where d.topRank is not null
+;

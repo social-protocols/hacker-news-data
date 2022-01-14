@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail # https://vaneyckt.io/posts/safer_bash_scripts_with_set_euxo_pipefail/#:~:text=set%20%2Du,is%20often%20highly%20desirable%20behavior.
 
+echo "Creating database..."
+
 OUT="out"
-DATASET="hacker-news-dataset.csv"
-SQLITEDB="hacker-news-dataset.sqlite"
+DATASET="data/hacker-news.csv"
+SQLITEDB="data/hacker-news.sqlite"
 
 main() {
-	rm -f "$SQLITEDB"
-	import-dataset
-	ls -lh "$SQLITEDB"
-    echo "now you can run ./queries.sh"
+    rm -f "$SQLITEDB"
+    import-dataset
+    ls -lh "$SQLITEDB"
+    echo "Now you can run ./queries.sh"
 }
 
 import-dataset() {
