@@ -14,7 +14,7 @@ library(ggplot2)
 ## Connect to Database
 
 ```{r}
-con <- RSQLite::dbConnect(RSQLite::SQLite(), "hacker-news-dataset.sqlite")
+con <- RSQLite::dbConnect(RSQLite::SQLite(), "../hacker-news-dataset.sqlite")
 ```
 
 
