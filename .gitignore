@@ -1,6 +1,7 @@
 .osfcli.config
 *.sqlite
 *.csv
+*.tsv
 .Rproj.user
 *.7z
 *.html
