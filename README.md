@@ -1,48 +1,52 @@
-# Import Hacker News Dataset and Create Database
+# Get Hacker News Dataset
 
-numbers in square brackets refer to resources
+Note: You need an account at the [open science framework](https://osf.io/)
 
+---
 
-## Get Data
+Install dependencies from `Pipfile`:
 
-* get [osfclient](https://github.com/osfclient/osfclient) (command line tool for open science framework): `pipenv install`
-* add OSF_TOKEN environment variable
-* `pipenv run osf init` (you're going to be asked for your username and the project name)
-* `./run.sh` should fetch the data from osf and create the database in the `./data/` directory
+`pipenv install`
 
+---
 
-## Connect to Database with R
+Create file `.osfcli.config` with the following content:
 
-* see `R/r-db-connection.Rmd`
+```
+[osf]
+username = <YOUR-USER-EMAIL>
+project = bnjsw
+```
 
+---
 
-## Next Steps
+ALTERNATIVELY:
 
-* agent logic: voting = sorting task? ("How does the frontpage currently look like and how SHOULD the frontpage look like?" -> voting = submit "proposition" for better sorting) [3]
-* find out number of votes by unique users + distributions [1, 2]
+Run `pipenv run osf init` and input your username (= email used for login at osf) and the project `bnjsw`.
 
-    * How many unique users? 
-    * How many votes total (per unit time)?
-    * 90-9-1 rule applies? Zipf's law?
+---
 
+Fetch the data and create the database with:
 
-## Problems
+`./run.sh`
 
-* missing values are ambiguous for some of the ranks (first period: missing -> not sampled; from second period on: missing -> not ranked)
+---
 
+Now, there should be a database `hacker-new.sqlite` in the `data/` folder.
 
-## Resources
+---
+
+# Prereqesites
+
+[osfclient](https://github.com/osfclient/osfclient)
+[sqlite3](https://www.sqlite.org/index.html)
+[pip](https://pypi.org/project/pip/)
+[pipenv](https://pipenv.pypa.io/en/latest/)
+
+---
+
+# For Reference
 
 [1] https://news.ycombinator.com/item?id=9219581  
 [2] https://www.kaggle.com/felixdietze/notebook9816d54b59  
 [3] https://github.com/fdietze/downvote-scoring 
-
-
-## Prerequisites
-
-* osfclient
-* sqlite3
-* R:
-    * DBI (for sqlite connection)
-    * dplyr
-    * ggplot2
