@@ -1,0 +1,126 @@
+---
+title: "Rank-Based Vote Distribution"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DBI)
+library(dplyr)
+library(ggplot2)
+con <- RSQLite::dbConnect(RSQLite::SQLite(), "../hacker-news-dataset.sqlite")
+```
+
+
+```{r}
+Sys.setlocale("LC_ALL","en_US.UTF-8")
+
+dbGetQuery(con, "
+  SELECT *
+  FROM dataset
+  INNER JOIN fullstories ON fullstories.id = dataset.id
+  WHERE topRank <= 10
+") %>% 
+  select(topRank, gain) %>% 
+  filter(gain <= 10) %>% 
+  group_by(topRank) %>% 
+  mutate(sampleCount = n()) %>% 
+  ungroup() %>% 
+  mutate(normalizedGain = gain / sumGain) %>% 
+  ggplot(aes(x = normalizedGain)) +
+  geom_histogram() +
+  coord_flip() +
+  facet_grid(rows = vars(topRank))
+  
+  
+
+
+```
+```{r}
+
+dbGetQuery(con, "
+  SELECT sampleTime, topRank, gain 
+  FROM dataset
+  INNER JOIN fullstories ON fullstories.id = dataset.id
+") %>% 
+  as_tibble() %>%
+  mutate(sampleTimeDateTime = lubridate::as_datetime(sampleTime)) %>% 
+  mutate(sampleTimeDate = lubridate::date(sampleTimeDateTime),
+         sampleTimeWeekday = lubridate::wday(sampleTimeDateTime, label = TRUE, week_start = 1),
+         sampleTimeHour = lubridate::hour(sampleTimeDateTime),
+         sampleTimeMinute = lubridate::minute(sampleTimeDateTime)) %>% 
+  filter(sampleTimeDate > "2021-04-26") %>% 
+  filter(sampleTimeDate < "2021-05-11") %>% 
+  group_by(sampleTimeDate, sampleTimeWeekday, sampleTimeHour, topRank) %>% 
+  summarize(sumGainInHour = sum(gain)) %>% 
+  ungroup() %>% 
+  group_by(sampleTimeWeekday, sampleTimeHour) %>% 
+  mutate(meanGainPerHour = mean(sumGainInHour)) %>% 
+  ungroup() -> data
+
+```
+```{r}
+data %>% 
+  filter(topRank <= 30) %>% 
+  ggplot(aes(x = sumGainInHour)) +
+  geom_histogram(binwidth = 10) +
+  scale_x_continuous(limits = c(0, 200)) +
+  coord_flip() +
+  facet_grid(cols = vars(topRank)) +
+  theme(legend.position = "None")
+
+ggsave(file.path("plots", "rbvd-test.png"), width = 20, height = 5)
+
+```
+
+```{r}
+tbl(con, "dataset") %>% 
+  inner_join(
+    tbl(con, "fullstories"),
+    by = "id"
+  ) %>% 
+  as_tibble() %>%
+  mutate(sampleTimeDateTime = lubridate::as_datetime(sampleTime)) %>% 
+  mutate(sampleTimeDate = lubridate::date(sampleTimeDateTime),
+         sampleTimeHour = lubridate::hour(sampleTimeDateTime),
+         sampleTimeMinute = lubridate::minute(sampleTimeDateTime)) %>% 
+  filter(sampleTimeDate > "2021-04-26") %>% 
+  filter(sampleTimeDate < "2021-05-11") %>% 
+  select(id, topRank, sampleTimeDate, sampleTimeHour, sampleTimeMinute, gain) -> data
+```
+
+
+```{r}
+RANK <- 8
+
+lambda <- (data %>% 
+  filter(topRank == RANK) %>% 
+  select(gain))$gain %>% 
+  mean()
+  
+
+data %>% 
+  filter(!is.na(topRank)) %>% 
+  select(topRank, sampleTimeHour, gain) %>% 
+  rename(gainPerMinute = gain) %>% 
+  filter(topRank == RANK) %>% 
+  ggplot(aes(sample = gainPerMinute)) +
+  stat_qq(distribution = qpois, dparams = list(lambda = lambda)) +
+  stat_qq_line(distribution = qpois, dparams = list(lambda = lambda)) +
+  coord_fixed()
+```
+
+
+
+
+
+
+
+# Disconnect from Database
+
+Don't forget to disconnect after session:
+
+```{r}
+RSQLite::dbDisconnect(conn = con)
+```
+

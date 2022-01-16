@@ -38,10 +38,10 @@ Now, there should be a database `hacker-new.sqlite` in the `data/` folder.
 
 # Prereqesites
 
-[osfclient](https://github.com/osfclient/osfclient)
-[sqlite3](https://www.sqlite.org/index.html)
-[pip](https://pypi.org/project/pip/)
-[pipenv](https://pipenv.pypa.io/en/latest/)
+* [osfclient](https://github.com/osfclient/osfclient)
+* [sqlite3](https://www.sqlite.org/index.html)
+* [pip](https://pypi.org/project/pip/)
+* [pipenv](https://pipenv.pypa.io/en/latest/)
 
 ---
 

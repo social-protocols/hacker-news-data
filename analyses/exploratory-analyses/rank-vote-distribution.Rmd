@@ -1,0 +1,235 @@
+---
+title: "Rsqlite"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DBI)
+library(dplyr)
+library(ggplot2)
+library(ggridges)
+
+SAVE <- FALSE
+
+```
+
+
+## Connect to Database
+
+```{r}
+con <- RSQLite::dbConnect(RSQLite::SQLite(), "../hacker-news-dataset.sqlite")
+```
+
+
+```{r}
+
+tbl(con, "dataset") %>% 
+  select(id, score) %>% 
+  group_by(id) %>% 
+  summarize(maxScore = max(score)) %>% 
+  ungroup() %>% 
+  inner_join(
+    tbl(con, "fullstories"),
+    by = "id"
+  ) -> joiner
+
+# only after 30 min
+
+tbl(con, "dataset") %>%
+  inner_join(
+    joiner, by = "id"
+  ) %>% 
+  select(topRank, maxScore, gain) %>% 
+  mutate(maxScoreBin = maxScore %/% 500) %>% 
+  filter(!is.na(topRank)) %>% 
+  group_by(topRank, maxScoreBin) %>% 
+  summarize(avgGain = mean(gain),
+            sumGain = sum(gain)) %>% 
+  ungroup() %>% 
+  as_tibble() -> data_1
+
+data_1 %>% 
+  filter(maxScoreBin == 1) %>% 
+  ggplot(aes(x = topRank, y = avgGain)) +
+  geom_bar(stat = "identity")
+```
+
+```{r}
+
+tbl(con, "dataset") %>% 
+  inner_join(
+    tbl(con, "fullstories"),
+    by = "id"
+  ) %>% 
+  filter(topRank == 31) %>% 
+  select(sampleTime, gain) %>% 
+  as_tibble() %>% 
+  mutate(sampleTimeBin = sampleTime %/% 3600) -> df
+
+df %>% 
+  group_by(sampleTimeBin) %>% 
+  summarize(sumGain = sum(gain) / 60) %>% 
+  ungroup() %>%
+  ggplot(aes(x = sumGain)) +
+  geom_histogram()
+
+
+```
+
+
+```{r}
+
+tbl(con, "dataset") %>% 
+  inner_join(
+    tbl(con, "fullstories"),
+    by = "id"
+  ) %>% 
+  select(sampleTime, topRank, gain) %>% 
+  filter(!is.na(topRank)) %>% 
+  mutate(sampleTimeBin = floor(sampleTime / 3600)) %>% 
+  group_by(sampleTimeBin, topRank) %>% 
+  summarize(sumGain = sum(gain)) %>% 
+  ungroup() %>% 
+  filter(topRank <= 10) %>% 
+  ggplot(aes(x = topRank, y = sumGain, group = topRank)) +
+  geom_violin() +
+  scale_x_continuous(trans = "reverse") +
+  coord_flip()
+
+```
+```{r}
+
+tbl(con, "dataset") %>% 
+  inner_join(
+    tbl(con, "fullstories"),
+    by = "id"
+  ) %>% 
+  select(sampleTime, topRank, gain) %>% 
+  filter(!is.na(topRank)) %>% 
+  mutate(sampleTimeBin = floor(sampleTime / 3600)) %>% 
+  group_by(sampleTimeBin, topRank) %>% 
+  summarize(sumGain = sum(gain)) %>% 
+  ungroup() %>% 
+  group_by(topRank, sumGain) %>% 
+  summarize(sumGainCount = n()) %>% 
+  ungroup() %>% 
+  filter(topRank <= 30) -> dt
+
+dt %>% 
+  ggplot(aes(x = sumGain, y = factor(topRank), fill = topRank)) +
+  geom_density_ridges(
+    quantile_lines = TRUE, quantile_fun = function(x, ...) mean(x),
+    alpha = 0.3, scale = 1.2
+  ) +
+  scale_fill_viridis_c() +
+  scale_x_continuous(limits = c(0, 200)) +
+  labs(
+    x = "Gain per Hour [KDE]",
+    y = "Top Rank"
+  ) +
+  coord_flip() +
+  theme(
+    legend.position = "none",
+    panel.background = element_rect(fill = "#f6f6ef"),
+    panel.grid.minor.x = element_blank()
+  )
+
+if (SAVE) {
+  ggsave("test.jpg", width = 15, height = 5)
+}
+
+```
+
+```{r}
+
+tbl(con, "dataset") %>% 
+  inner_join(
+    tbl(con, "fullstories"),
+    by = "id"
+  ) %>% 
+  select(sampleTime, topRank, gain) %>% 
+  filter(!is.na(topRank)) %>% 
+  mutate(sampleTimeBin = floor(sampleTime / 3600)) %>% 
+  group_by(sampleTimeBin, topRank) %>% 
+  summarize(sumGain = sum(gain)) %>% 
+  ungroup() %>% 
+  group_by(topRank, sumGain) %>% 
+  summarize(sumGainCount = n()) %>% 
+  ungroup() %>% 
+  filter(topRank <= 30) -> dt
+
+dt %>% 
+  ggplot(aes(x = topRank, y = sumGain, color = topRank)) +
+  geom_jitter(alpha = 0.3) +
+  scale_color_viridis_c() +
+  scale_y_continuous(limits = c(0, 300))
+```
+
+```{sql}
+
+SELECT *
+FROM (SELECT `topRank`, `sumGain`, COUNT(*) AS `sumGainCount`
+FROM (SELECT `sampleTimeBin`, `topRank`, SUM(`gain`) AS `sumGain`
+FROM (SELECT `sampleTime`, `topRank`, `gain`, FLOOR(`sampleTime` / 3600.0) AS `sampleTimeBin`
+FROM (SELECT `sampleTime`, `topRank`, `gain`
+FROM (SELECT `LHS`.`id` AS `id`, `score`, `descendants`, `submissionTime`, `sampleTime`, `tick`, `samplingWindow`, `topRank`, `newRank`, `bestRank`, `askRank`, `showRank`, `jobRank`, `gain`
+FROM `dataset` AS `LHS`
+INNER JOIN `fullstories` AS `RHS`
+ON (`LHS`.`id` = `RHS`.`id`)
+))
+WHERE (NOT(((`topRank`) IS NULL))))
+GROUP BY `sampleTimeBin`, `topRank`)
+GROUP BY `topRank`, `sumGain`)
+WHERE (`topRank` <= 30.0)
+
+```
+
+
+```{r}
+
+hour_of_day <- 15
+
+tbl(con, "dataset") %>% 
+  inner_join(
+    tbl(con, "fullstories"),
+    by = "id"
+  ) %>% 
+  select(sampleTime, topRank, gain) %>% 
+  filter(!is.na(topRank)) %>% 
+  mutate(sampleTimeBin = floor(sampleTime / 3600)) %>% 
+  mutate(hourBin = sampleTimeBin %% 24) %>% 
+  filter(hourBin == hour_of_day) %>% 
+  group_by(sampleTimeBin, topRank) %>% 
+  summarize(sumGain = sum(gain)) %>% 
+  ungroup() %>% 
+  group_by(topRank, sumGain) %>% 
+  summarize(sumGainCount = n()) %>% 
+  ungroup() %>% 
+  filter(topRank <= 30) -> dt 
+
+dt %>% 
+  ggplot(aes(x = factor(topRank), y = sumGain)) +
+  geom_violin() +
+  geom_jitter(width = 0.2, alpha = 0.5) +
+  scale_y_continuous(limits = c(0, 300)) +
+  NULL
+
+if (SAVE) {
+  ggsave("test.jpg", width = 15, height = 5)
+}
+
+```
+
+# Work with Database
+
+Load a table:
+
+# Disconnect from Database
+
+Don't forget to disconnect after session:
+
+```{r}
+RSQLite::dbDisconnect(conn = con)
+```
+
