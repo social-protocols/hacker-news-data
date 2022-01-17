@@ -48,17 +48,16 @@ select "Deleting jobs...";
 -- jobs never appear on the new-page and never receive any votes, but may appear on the frontpage
 delete from dataset where id in (select distinct id from dataset where jobrank != "\N");
 
+
 select "Converting NULL values...";
-update dataset set topRank = null where topRank = "NULL";
-update dataset set newRank = null where newRank = "NULL";
-update dataset set bestRank = null where bestRank = "NULL";
-update dataset set askRank = null where askRank = "NULL";
-update dataset set showRank = null where showRank = "NULL";
-update dataset set jobRank = null where jobRank = "NULL";
-update dataset set score = null where score = "NULL";
-update dataset set descendants = 0 where descendants = "NULL";
-
-
+update dataset set topRank = null where topRank = "\N";
+update dataset set newRank = null where newRank = "\N";
+update dataset set bestRank = null where bestRank = "\N";
+update dataset set askRank = null where askRank = "\N";
+update dataset set showRank = null where showRank = "\N";
+update dataset set jobRank = null where jobRank = "\N";
+update dataset set score = null where score = "\N";
+update dataset set descendants = 0 where descendants = "\N";
 
 
 select "Creating indices...";
