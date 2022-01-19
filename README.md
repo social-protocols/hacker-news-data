@@ -42,6 +42,7 @@ Now, there should be a database `hacker-new.sqlite` in the `data/` folder.
 * [sqlite3](https://www.sqlite.org/index.html)
 * [pip](https://pypi.org/project/pip/)
 * [pipenv](https://pipenv.pypa.io/en/latest/)
+* pv
 
 ---
 

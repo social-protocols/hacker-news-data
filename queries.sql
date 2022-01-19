@@ -10,10 +10,12 @@ PRAGMA mmap_size = 30000000000;
 
 select "Daily votes arrival";
 -- only take fully sampled days (1 sample / min): count(distinct tick) > 1400
-select avg(daygain) from (select date(sampleTime, 'unixepoch'), min(gain), max(gain), sum(gain) as daygain, count(distinct tick) from dataset where samplingWindow >= 3 group by date(sampleTime, 'unixepoch') having count(distinct tick) > 1400);
+select avg(daygain) from (select date(sampleTime, 'unixepoch'), min(gain), max(gain), sum(gain) as daygain, count(distinct tick) from dataset group by date(sampleTime, 'unixepoch') having count(distinct tick) > 1400);
 
--- quality distribution:
-select localQuality4, count(*), avg(score), min(bestTopRank), avg(bestTopRank), id from quality group by floor(localQuality4*100) limit 100;
+select "Quality Distribution";
+.headers on
+.mode column
+select cumulativeQuality, count(*), avg(score), min(bestTopRank), avg(bestTopRank), id from quality group by floor(cumulativeQuality*100) limit 100;
 
 
 
@@ -21,8 +23,8 @@ select localQuality4, count(*), avg(score), min(bestTopRank), avg(bestTopRank), 
 .headers on
 .nullvalue (NULL)
 SELECT "best stories:";
-select id, localQuality4, score, bestTopRank, avgTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality order by localQuality4 desc limit 30;
-select id, (localQuality4+localQuality5)/2, score, bestTopRank, avgTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality order by (localQuality4+localQuality5)/2 desc limit 30;
+select id, cumulativeQuality, score, bestTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality order by cumulativeQuality desc limit 30;
+
 SELECT "worst stories:";
-select id, localQuality5, score, bestTopRank, avgTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality order by localQuality5 asc  limit 30;
+select id, cumulativeQuality, score, bestTopRank, samples, predictionSamples, 'https://news.ycombinator.com/item?id=' || id from quality order by cumulativeQuality asc  limit 30;
 
