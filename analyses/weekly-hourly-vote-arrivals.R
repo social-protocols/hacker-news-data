@@ -3,6 +3,7 @@ library(dplyr)
 library(DBI)
 library(ggplot2)
 library(lubridate)
+library(viridis)
 
 # Set locale
 Sys.setlocale("LC_ALL","en_US.UTF-8")
@@ -10,8 +11,7 @@ Sys.setlocale("LC_ALL","en_US.UTF-8")
 # Connect to database
 con <- RSQLite::dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
 
-
-
+# Query
 dbGetQuery(con, "
   SELECT sampleTime, topRank, gain
   FROM dataset
@@ -24,19 +24,19 @@ dbGetQuery(con, "
          sampleTimeMinute = lubridate::minute(sampleTimeDateTime)) %>%  
   group_by(sampleTimeDate, sampleTimeWeekday, sampleTimeHour, sampleTimeMinute) %>% 
   summarize(sumGainInMinute = sum(gain)) %>% 
-  ungroup() -> data_1
-
-data_1 %>% 
+  ungroup() %>% 
   group_by(sampleTimeDate, sampleTimeWeekday, sampleTimeHour) %>% 
   summarize(meanPerMinuteGainInHour = mean(sumGainInMinute)) %>% 
-  ungroup() -> data_2
+  ungroup() -> data
 
-data_2 %>% 
+# Plot
+data %>% 
   filter(meanPerMinuteGainInHour < 40, meanPerMinuteGainInHour > 0) %>%
   mutate(meanPerHourGainInHour = meanPerMinuteGainInHour * 60) %>% 
   ggplot(aes(x = sampleTimeHour, y = meanPerHourGainInHour)) +
-  geom_smooth(se = FALSE, size = 1, color = "grey") +
-  geom_point(alpha = 0.6, aes(color = factor(sampleTimeWeekday))) +
+  geom_point(alpha = 0.4, aes(color = factor(sampleTimeWeekday))) +
+  geom_line(stat = "smooth", size = 1, alpha = 0.7, color = "grey40") +
+  scale_color_viridis(discrete = TRUE) +
   scale_x_continuous(breaks = c(0, 6, 12, 18)) +
   scale_y_continuous(breaks = seq(0, 1400, by = 300), limits = c(0, 1500)) +
   labs(
@@ -56,14 +56,9 @@ data_2 %>%
   ) +
   NULL
 
-
-
- 
+# Save plot 
 ggsave("plots/weekly-hourly-vote-arrivals.png", width = 8, height = 5)
 ggsave("plots/weekly-hourly-vote-arrivals.svg", width = 8, height = 5)
-
-
-
 
 # Disconnect from database
 RSQLite::dbDisconnect(conn = con)

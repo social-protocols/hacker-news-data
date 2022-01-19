@@ -14,7 +14,7 @@ dbGetQuery(
   "
   SELECT topRank, gain, sampleTime
   FROM dataset
-  WHERE topRank in (1, 2, 3, 4, 5, 6);
+  WHERE topRank <= 10;
   "
 ) %>% 
   mutate(sampleTime = as_datetime(sampleTime)) %>% 
@@ -33,17 +33,23 @@ data$topRank %<>%
     `4` = "Rank 4",
     `5` = "Rank 5",
     `6` = "Rank 6",
+    `7` = "Rank 7",
+    `8` = "Rank 8",
+    `9` = "Rank 9",
+    `10` = "Rank 10",
     .ordered = TRUE
   )
 
+# Calculate means to plot vlines
 mean_gains <- data %>% 
   group_by(topRank) %>% 
   summarize(meanGain = mean(gain)) %>% 
   ungroup()
 
+# Plot
 p <- data %>% 
   ggplot(aes(x = gain)) +
-  geom_histogram(binwidth = 10, fill = "black", alpha = 0.8)
+  geom_histogram(binwidth = 5, fill = "black", alpha = 0.8)
 
 for (tr in levels(data$topRank)) {
   p <- p +
@@ -51,32 +57,32 @@ for (tr in levels(data$topRank)) {
       data = filter(mean_gains, topRank == tr), 
       aes(xintercept = meanGain),
       linetype = "dashed",
+      size = 1,
       color = "#ff6600"
     )
 }
 
 p <- p +
+  scale_x_continuous(limits = c(0, 200)) +
   labs(
-    x = "Gain per Hour",
-    y = "Count",
+    x = "Upvotes per Hour",
     caption = "dashed orange lines indicate the mean"
   ) +
-  scale_y_continuous(breaks = seq(0, 500, 200)) +
   facet_grid(rows = vars(topRank)) +
   theme(
     panel.background = element_rect(fill = "#f6f6ef"),
     panel.grid.minor = element_blank(),
     panel.grid.major = element_line(color = "grey90"),
+    axis.title.x = element_text(margin = margin(t = 10, b = 10)),
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
     axis.line = element_line(color = "black"),
     text = element_text(family = "Courier"),
   )
 
-p
-
-
 # Save plot
-ggsave("plots/vote-arrivals-per-rank.png", width = 7, height = 7)
-ggsave("plots/vote-arrivals-per-rank.svg", width = 7, height = 7)
+ggsave(plot = p, "plots/vote-arrivals-per-rank.png", width = 7, height = 9)
+ggsave(plot = p, "plots/vote-arrivals-per-rank.svg", width = 7, height = 9)
 
 # Disconnect from database
 RSQLite::dbDisconnect(conn = con)
