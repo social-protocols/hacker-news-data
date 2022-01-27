@@ -47,13 +47,26 @@ data <- dbGetQuery(
 url <- glue("https://hacker-news.firebaseio.com/v0/item/{selected_id}.json")
 story <- content(GET(url[1]))
 
+# Wrangle data into plottable format
+data %>%
+  mutate(ageHoursFloor = floor(ageHours)) %>% 
+  group_by(ageHoursFloor) %>% 
+  mutate(sumGainInHour = sum(gain)) %>% 
+  ungroup() %>% 
+  mutate(topRank = -topRank) %>% 
+  filter(ageHours <= 24) -> plot_data
+
 # Plot
-data %>% 
-  filter(ageHours <= 24) %>% 
-  ggplot(aes(x = ageHours, y = topRank)) +
-  geom_line(color = "#ff6600") +
+ggplot(plot_data) +
+  geom_line(aes(x = ageHours, y = topRank + 90), color = "#ff6600") +
+  geom_bar(
+    data = plot_data %>% select(ageHoursFloor, sumGainInHour) %>% distinct(),
+    aes(x = ageHoursFloor, y = sumGainInHour), stat = "identity", fill = "black") +
   scale_x_continuous(breaks = seq(0, 24, 4)) +
-  scale_y_continuous(trans = "reverse", breaks = seq(5, 90, 5)) +
+  scale_y_continuous(
+    breaks = seq(0, 90, 5),
+    labels = function(x) abs(x - 90)
+  ) +
   labs(
     x = "Age [Hours]",
     y = "Top Rank",
@@ -74,8 +87,8 @@ data %>%
   NULL
 
 # Save plot
-ggsave("plots/story-rank-history.png", width = 8, height = 6)
-ggsave("plots/story-rank-history.svg", width = 8, height = 6)
+# ggsave("plots/story-rank-history.png", width = 8, height = 6)
+# ggsave("plots/story-rank-history.svg", width = 8, height = 6)
 
 # Disconnect from database
 RSQLite::dbDisconnect(conn = con)
