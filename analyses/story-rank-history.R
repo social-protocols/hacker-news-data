@@ -14,8 +14,9 @@ Sys.setlocale("LC_ALL","en_US.UTF-8")
 
 
 # ID of sample story
-selected_id <- 29621574
+# selected_id <- 29621574
 
+selected_id <- 29622063
 
 # Connect to database
 con <- RSQLite::dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
@@ -44,32 +45,13 @@ story <- content(GET(url[1]))
 data <- dbGetQuery(
   con,
   "
-  SELECT 
-    id, score, sampleTime,
-    CAST(sampleTime - submissionTime AS FLOAT) / (60 * 60) AS ageHours, 
-    topRank, gain
-  FROM dataset
+  select id, topRank, sampleTime, cast(sampleTime - submissiontime as Float)/(60*60) as ageHours, 
+  gain, avgGain 
+  from qualityDebug
   WHERE id={selected_id};
   " %>% glue()
 ) %>% 
-  mutate(sampleTime = as_datetime(sampleTime)) %>% 
-  mutate(
-    timeofdayBin = hour(sampleTime),
-    dayofweekBin = as.integer(wday(sampleTime))
-  ) %>% 
-  mutate(topRankBin = log2(topRank) + 1) %>% 
-  replace_na(list(topRankBin = -1)) %>% 
-  mutate(topRankBin = as.integer(topRankBin))
-
-  
-# Get expected upvotes
-expected_upvotes <- dbGetQuery(con, "SELECT * FROM expectedUpvotes" %>% glue()) %>% 
-  mutate(topRankBin = as.integer(topRankBin))
-
-
-# Join expected upvotes to data
-data %<>% 
-  left_join(expected_upvotes, by = c("topRankBin", "timeofdayBin", "dayofweekBin"))
+  mutate(sampleTime = as_datetime(sampleTime))
 
 
 # Wrangle data into plottable format
@@ -129,11 +111,11 @@ p <- ggplot(rank_history) +
 
 
 # Only upvotes in hour
-p_a <- p +
-  geom_bar(
-    data = rank_history %>% select(ageHoursFloor, actual) %>% distinct(),
-    aes(x = ageHoursFloor, y = actual), stat = "identity", fill = "black"
-  )
+# p_a <- p +
+#   geom_bar(
+#     data = rank_history %>% select(ageHoursFloor, actual) %>% distinct(),
+#     aes(x = ageHoursFloor, y = actual), stat = "identity", fill = "black"
+#   )
 
 # Upvotes and expected upvotes
 p_b <- p +
@@ -142,39 +124,41 @@ p_b <- p +
     aes(x = ageHoursFloor, y = value, fill = metric),
     stat = "identity",
     position = "dodge",
-    width = 1
+    width = 0.6
   ) +
   scale_fill_manual(values = c("actual" = "black", "expected" = "gold3"))
 
-p_c <- p +
-  geom_line(
-    data = gain_data,
-    aes(x = ageHoursFloor, y = value, color = metric)
-  ) +
-  geom_point(
-    data = gain_data,
-    shape = 21,
-    fill = "white",
-    size = 2,
-    aes(x = ageHoursFloor, y = value, color = metric)
-  ) +
-  scale_color_manual(values = c("actual" = "black", "expected" = "gold3"))
+# p_c <- p +
+#   geom_line(
+#     data = gain_data,
+#     aes(x = ageHoursFloor, y = value, color = metric)
+#   ) +
+#   geom_point(
+#     data = gain_data,
+#     shape = 21,
+#     fill = "white",
+#     size = 2,
+#     aes(x = ageHoursFloor, y = value, color = metric)
+#   ) +
+#   scale_color_manual(values = c("actual" = "black", "expected" = "gold3"))
 
 
 # Final plot
 # final <- p_a + theme(legend.position = "None")
 
-# final <- p_b +
-#   theme(
-#     legend.position = c(0.9, 0.9),
-#     legend.box.background = element_rect(fill = "white", color = "black")
-#   )
-
-final <- p_c +
+final <- p_b +
   theme(
     legend.position = c(0.9, 0.9),
     legend.box.background = element_rect(fill = "white", color = "black")
   )
+
+final
+
+# final <- p_c +
+#   theme(
+#     legend.position = c(0.9, 0.9),
+#     legend.box.background = element_rect(fill = "white", color = "black")
+#   )
 
 
 # Save plot

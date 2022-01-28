@@ -83,7 +83,8 @@ SELECT "Calculating expected upvotes (predicted gain)...";
 -- we convert nulls to -1, to have a faster join. joins usually ignore null and need special treatment.
 create table expectedUpvotes as
     select
-        ifnull(pow(2, floor(log2(d.topRank))), -1) as topRankBin,
+        /* ifnull(pow(2, floor(log2(d.topRank))), -1) as topRankBin, */
+        ifnull(d.topRank, -1) as topRankBin,
         /* ifnull(pow(2, floor(log2(d.newRank))), -1) as newRankBin, */
         /* ifnull(pow(2, floor(log2(d.bestRank))), -1) as bestRankBin, */
         /* ifnull(pow(2, floor(log2(d.askRank))), -1) as askRankBin, */

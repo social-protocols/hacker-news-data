@@ -15,7 +15,8 @@ create table quality as
     from fullstories f
     join dataset d on d.id = f.id
     join expectedUpvotes mg on
-            mg.topRankBin = ifnull(pow(2, floor(log2(d.topRank))), -1)
+            /* mg.topRankBin = ifnull(pow(2, floor(log2(d.topRank))), -1) */
+            mg.topRankBin = ifnull(d.topRank, -1)
         /* and mg.newRankBin = ifnull(pow(2, floor(log2(d.newRank))), -1) */
         /* and mg.bestRankBin = ifnull(pow(2, floor(log2(d.bestRank))), -1) */
         /* and mg.askRankBin = ifnull(pow(2, floor(log2(d.askRank))), -1) */
@@ -40,7 +41,8 @@ create view qualityDebug as select d.*, avgGain, minGain, maxGain, samples,
 from fullstories f
 join dataset d on d.id = f.id
 join expectedUpvotes mg on
-            mg.topRankBin = ifnull(pow(2, floor(log2(d.topRank))), -1)
+            /* mg.topRankBin = ifnull(pow(2, floor(log2(d.topRank))), -1) */
+            mg.topRankBin = ifnull(d.topRank, -1)
         /* and mg.newRankBin = ifnull(pow(2, floor(log2(d.newRank))), -1) */
         /* and mg.bestRankBin = ifnull(pow(2, floor(log2(d.bestRank))), -1) */
         /* and mg.askRankBin = ifnull(pow(2, floor(log2(d.askRank))), -1) */
