@@ -1,48 +1,23 @@
----
-title: "Rsqlite"
-output: html_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
 library(DBI)
 library(dplyr)
 library(ggplot2)
-```
 
-
-## Connect to Database
-
-```{r}
+# Connect to Database
 con <- RSQLite::dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
-```
 
 
 # Work with Database
 
-Load a table:
-
-```{r}
+# - Load a table:
 tbl(con, "dataset") %>% 
   head(20)
-```
 
-Make a plot:
-
-```{r}
+# - Make a plot:
 tbl(con, "dataset") %>% 
   select(score) %>% 
   ggplot(aes(x = score)) +
   geom_histogram()
-```
 
 
 # Disconnect from Database
-
-Don't forget to disconnect after session:
-
-```{r}
 RSQLite::dbDisconnect(conn = con)
-```
-
-
