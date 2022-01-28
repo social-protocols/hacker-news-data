@@ -66,7 +66,7 @@ p <- p +
   scale_x_continuous(limits = c(0, 200)) +
   labs(
     x = "Upvotes per Hour",
-    caption = "dashed orange lines indicate the mean"
+    caption = "Histograms of upvote arrivals for ranks 1-10. Dashed orange lines indicate the mean."
   ) +
   facet_grid(rows = vars(topRank)) +
   theme(

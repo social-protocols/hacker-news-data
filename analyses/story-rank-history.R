@@ -14,9 +14,16 @@ Sys.setlocale("LC_ALL","en_US.UTF-8")
 
 
 # ID of sample story
-# selected_id <- 29621574
+selected_id <- 29621574
 
-selected_id <- 29622063
+
+# Include expected upvotes?
+INCLUDE_EXPECTED <- TRUE
+
+
+# For other stories
+# selected_id <- 29622063
+
 
 # Connect to database
 con <- RSQLite::dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
@@ -75,24 +82,12 @@ gain_data <- rank_history %>%
   mutate(metric = factor(metric))
 
 
-# Theme element that are the same for all options
-base_theme <- theme(
-  plot.caption = element_text(hjust = 0),
-  legend.title = element_blank(),
-  text = element_text(family = "Courier"),
-  axis.title.x = element_text(margin = margin(t = 10, b = 20)),
-  panel.background = element_rect(fill = "#f6f6ef"),
-  panel.grid.major = element_line(color = "grey90"),
-  panel.grid.minor = element_blank(),
-  axis.line = element_line(color = "black")
-)
-
 # Plot
 p <- ggplot(rank_history) +
   geom_line(aes(x = ageHours, y = topRank + 90), color = "#ff6600") +
   scale_x_continuous(breaks = seq(0, 24, 4)) +
   scale_y_continuous(
-    breaks = seq(0, 85, 5),
+    breaks = c(89, seq(0, 85, 5)),
     labels = function(x) abs(x - 90),
     sec.axis = sec_axis(~ ., name = "Upvote Gain")
   ) +
@@ -104,66 +99,55 @@ p <- ggplot(rank_history) +
       glue("Title: {story$title}\n\n"),
       glue("URL: {story$url}\n\n"),
       glue("Posted: {as_datetime(story$time)} UTC\n\n\n"),
-      paste0("Orange line indicates the rank history, black bars the gained votes per hour.")
+      paste0("Line (left y-axis) indicates the rank.\n"),
+      paste0("Bars (right y-axis) indicate actual and expected gained votes per hour.")
     )
   ) +
-  base_theme
-
-
-# Only upvotes in hour
-# p_a <- p +
-#   geom_bar(
-#     data = rank_history %>% select(ageHoursFloor, actual) %>% distinct(),
-#     aes(x = ageHoursFloor, y = actual), stat = "identity", fill = "black"
-#   )
-
-# Upvotes and expected upvotes
-p_b <- p +
-  geom_bar(
-    data = gain_data,
-    aes(x = ageHoursFloor, y = value, fill = metric),
-    stat = "identity",
-    position = "dodge",
-    width = 0.6
-  ) +
-  scale_fill_manual(values = c("actual" = "black", "expected" = "gold3"))
-
-# p_c <- p +
-#   geom_line(
-#     data = gain_data,
-#     aes(x = ageHoursFloor, y = value, color = metric)
-#   ) +
-#   geom_point(
-#     data = gain_data,
-#     shape = 21,
-#     fill = "white",
-#     size = 2,
-#     aes(x = ageHoursFloor, y = value, color = metric)
-#   ) +
-#   scale_color_manual(values = c("actual" = "black", "expected" = "gold3"))
-
-
-# Final plot
-# final <- p_a + theme(legend.position = "None")
-
-final <- p_b +
   theme(
-    legend.position = c(0.9, 0.9),
-    legend.box.background = element_rect(fill = "white", color = "black")
+    plot.caption = element_text(hjust = 0),
+    legend.title = element_blank(),
+    text = element_text(family = "Courier"),
+    axis.title.x = element_text(margin = margin(t = 10, b = 20)),
+    panel.background = element_rect(fill = "#f6f6ef"),
+    panel.grid.major = element_line(color = "grey90"),
+    panel.grid.minor = element_blank(),
+    axis.line = element_line(color = "black")
   )
 
-final
 
-# final <- p_c +
-#   theme(
-#     legend.position = c(0.9, 0.9),
-#     legend.box.background = element_rect(fill = "white", color = "black")
-#   )
+# Plot with or without expected upvotes
+if (INCLUDE_EXPECTED) {
+  
+  p <- p +
+    geom_bar(
+      data = gain_data,
+      aes(x = ageHoursFloor, y = value, fill = metric),
+      stat = "identity",
+      position = "dodge",
+      width = 0.6
+    ) +
+    scale_fill_manual(values = c("actual" = "black", "expected" = "gold3")) +
+    theme(
+      legend.position = c(0.9, 0.9),
+      legend.box.background = element_rect(fill = "white", color = "black")
+    )
+  
+} else {
+  
+  p <- p +
+    geom_bar(
+      data = rank_history %>% select(ageHoursFloor, actual) %>% distinct(),
+      aes(x = ageHoursFloor, y = actual), stat = "identity", fill = "black"
+    ) +
+    theme(legend.position = "None")
+  
+}
 
 
 # Save plot
-ggsave(plot = final, "plots/story-rank-history.png", width = 8, height = 6)
-ggsave(plot = final, "plots/story-rank-history.svg", width = 8, height = 6)
+ggsave(plot = p, "plots/story-rank-history.png", width = 8, height = 6)
+ggsave(plot = p, "plots/story-rank-history.svg", width = 8, height = 6)
+
 
 # Disconnect from database
 RSQLite::dbDisconnect(conn = con)

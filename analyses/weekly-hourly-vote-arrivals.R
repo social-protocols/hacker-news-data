@@ -30,7 +30,7 @@ dbGetQuery(con, "
   ungroup() -> data
 
 # Plot
-data %>% 
+p <- data %>% 
   filter(meanPerMinuteGainInHour < 40, meanPerMinuteGainInHour > 0) %>%
   mutate(meanPerHourGainInHour = meanPerMinuteGainInHour * 60) %>% 
   ggplot(aes(x = sampleTimeHour, y = meanPerHourGainInHour)) +
@@ -42,7 +42,7 @@ data %>%
   labs(
     x = "Time of Day",
     y = "Average Upvote Arrival Rate per Hour",
-    caption = "collected between 2021-11-23 and 2021-01-14" 
+    caption = "Collected between 2021-11-23 and 2021-01-14." 
   ) +
   facet_grid(cols = vars(sampleTimeWeekday)) +
   theme(
@@ -57,8 +57,8 @@ data %>%
   NULL
 
 # Save plot 
-ggsave("plots/weekly-hourly-vote-arrivals.png", width = 8, height = 5)
-ggsave("plots/weekly-hourly-vote-arrivals.svg", width = 8, height = 5)
+ggsave(plot = p, "plots/weekly-hourly-vote-arrivals.png", width = 8, height = 5)
+ggsave(plot = p, "plots/weekly-hourly-vote-arrivals.svg", width = 8, height = 5)
 
 # Disconnect from database
 RSQLite::dbDisconnect(conn = con)
