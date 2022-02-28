@@ -19,6 +19,7 @@ dbGetQuery(
 ) %>% 
   mutate(sampleTime = as_datetime(sampleTime)) %>% 
   mutate(sampleTimeRounded = round_date(sampleTime, unit = "hour")) %>% 
+  # filter(hour(sampleTimeRounded) %in% seq(8, 12, 1), wday(sampleTimeRounded) == 4) %>%   # REMOVE AFTER EXPERIMENTING WITH IT
   group_by(sampleTimeRounded, topRank) %>% 
   summarize(gain = sum(gain)) %>% 
   ungroup() -> data

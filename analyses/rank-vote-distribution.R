@@ -8,7 +8,7 @@ library(lubridate)
 con <- RSQLite::dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
 
 # Query and plot
-dbGetQuery(
+p <- dbGetQuery(
   con,
   "
   SELECT sampleTime, topRank, gain
@@ -27,7 +27,7 @@ dbGetQuery(
   ggplot(aes(x = topRank, y = meanGainPerHour)) +
   geom_bar(stat = "identity", fill = "black") +
   labs(
-    x = "Top Rank",
+    x = "Frontpage Rank",
     y = "Average Upvotes per Hour"
   ) +
   geom_vline(xintercept = 30, linetype = "dashed") + 
@@ -47,8 +47,8 @@ dbGetQuery(
   NULL
   
 # Save plot
-ggsave("plots/rank-vote-distribution.png", width = 7, height = 7)
-ggsave("plots/rank-vote-distribution.svg", width = 7, height = 7)
+ggsave(plot = p, "plots/rank-vote-distribution.png", width = 7, height = 7)
+ggsave(plot = p, "plots/rank-vote-distribution.svg", width = 7, height = 7)
 
 # Disconnect from database
 RSQLite::dbDisconnect(conn = con)
