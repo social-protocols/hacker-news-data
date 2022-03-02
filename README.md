@@ -1,53 +1,29 @@
-# Get Hacker News Dataset
+# Every Minute of Hacker News
 
-Note: You need an account at the [open science framework](https://osf.io/)
+Every minute for a couple of month, we collected a snapshot of the 1500 newest stories of Hacker News with [this scraper](https://github.com/social-protocols/hn-scraper).
+A current version of the dataset can be accessed via the [open science framework (osf)](https://osf.io/bnysw/).
 
----
-
-Install dependencies from `Pipfile`:
-
-`pipenv install`
-
----
-
-Create file `.osfcli.config` with the following content:
+You can fetch the data and create the database with:
 
 ```
-[osf]
-username = <YOUR-USER-EMAIL>
-project = bnjsw
+> ./run.sh
 ```
 
----
+The database along with the raw data should be in the `/data/` folder.
 
-ALTERNATIVELY:
 
-Run `pipenv run osf init` and input your username (= email used for login at osf) and the project `bnjsw`.
-
----
-
-Fetch the data and create the database with:
-
-`./run.sh`
-
----
-
-Now, there should be a database `hacker-new.sqlite` in the `data/` folder.
-
----
-
-# Prereqesites
+## Prerequisites
 
 * [osfclient](https://github.com/osfclient/osfclient)
 * [sqlite3](https://www.sqlite.org/index.html)
 * [pip](https://pypi.org/project/pip/)
 * [pipenv](https://pipenv.pypa.io/en/latest/)
-* pv
+* [pv](https://linux.die.net/man/1/pv)
 
----
 
-# For Reference
+## For Reference
 
-[1] https://news.ycombinator.com/item?id=9219581  
-[2] https://www.kaggle.com/felixdietze/notebook9816d54b59  
-[3] https://github.com/fdietze/downvote-scoring 
+[1] [Hacker News Scraper](https://github.com/social-protocols/hn-scraper)  
+[2] [Exploratory Data Analysis](https://www.kaggle.com/felixdietze/notebook9816d54b59)  
+[3] [Improving the Hacker News Ranking Algorithm](https://felx.me/2021/08/29/improving-the-hacker-news-ranking-algorithm.html)  
+[4] [Simulation to Test New Ranking Formulas](https://github.com/fdietze/downvote-scoring)  

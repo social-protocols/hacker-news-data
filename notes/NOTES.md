@@ -12,3 +12,7 @@
 
 * missing values are ambiguous for some of the ranks (first period: missing -> not sampled; from second period on: missing -> not ranked)
 
+
+## For Reference
+
+[1] https://news.ycombinator.com/item?id=9219581: How many people read HN  
