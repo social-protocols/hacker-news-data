@@ -11,7 +11,6 @@ main() {
     rm -f "$SQLITEDB"
     import-dataset
     ls -lh "$SQLITEDB"
-    echo "Now you can run ./queries.sh"
 }
 
 import-dataset() {
