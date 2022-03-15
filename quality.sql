@@ -1,13 +1,14 @@
 .bail on
 
 drop table if exists quality;
-drop view if exists qualityDetails;
+drop view if exists qualityDebug;
 
 
-select "Estimating quality via cumulative expected upvotes...";
+select "Estimating quality...";
 create table quality as
     select d.id,
         cast(sum(gain) as real) / sum(mg.avgGain) as cumulativeQuality,
+        avg(cast(gain as real) / mg.avgGain) as qualitySpeed,
         max(d.score) as score,
         min(d.topRank) as bestTopRank,
         count(*) as samples,
@@ -28,11 +29,13 @@ create table quality as
         and mg.dayofweekBin = cast(strftime('%w', sampleTime, 'unixepoch') as int)
     where
         gain is not null
+        and d.topRank is not null
         and mg.samples >= 4 -- arbitrary number
     group by f.id
     ;
 create unique index quality_id_idx on quality(id);
 create index quality_quality_cq_idx on quality(cumulativeQuality);
+create index quality_quality_qs_idx on quality(qualitySpeed);
 
 
 -- to debug quality calculation:
