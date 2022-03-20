@@ -53,6 +53,7 @@ update dataset set descendants = 0 where descendants = "\N";
 select "Creating indices...";
 create index id_age_idx on dataset(id,sampleTime-submissionTime);
 create unique index id_sampleTime_idx on dataset(id, sampleTime);
+create index id_idx on dataset(id);
 
 
 select "Calculating fully tracked stories...";

@@ -18,6 +18,7 @@ import-dataset() {
 	echo "" | sqlite3 "$SQLITEDB" --init quality.sql
 	echo "" | sqlite3 "$SQLITEDB" --init optimize.sql
 	echo "" | sqlite3 "$SQLITEDB" --init queries.sql
+	echo "" | sqlite3 "$SQLITEDB" --init sample-stories.sql
 }
 
 main "$@"
