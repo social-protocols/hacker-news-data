@@ -5,8 +5,11 @@ drop view if exists qualityDebug;
 
 
 select "Estimating quality...";
+drop table if exists quality;
 create table quality as
     select d.id,
+        sum(gain) as upvotes,
+        sum(mg.avgGain) as expectedUpvotes,
         cast(sum(gain) as real) / sum(mg.avgGain) as cumulativeQuality,
         avg(cast(gain as real) / mg.avgGain) as qualitySpeed,
         max(d.score) as score,
