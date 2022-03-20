@@ -11,7 +11,7 @@
   "Packages": {
     "BH": {
       "Package": "BH",
-      "Version": "1.66.0-1",
+      "Version": "1.75.0-0",
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "65955cebebd6f0075d89ee3b6558f2ac",
