@@ -1,10 +1,16 @@
-# Connect to the sqlite database
 library(DBI)
+library(rethinking)
+library(glue)
+
+
+# Connect to the sqlite database
 con <- RSQLite::dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
 
 # A library accompanying the Richard McElreath's "Statistical Rethinking",
 # with a bunch of utility methods, wrappers around STAN.
-library(rethinking)
+
+# Sample size THere needs to be a corresponding random sample table. (e.g. if n=1000, random_sample_1000_stories)
+n <- 1000
 
 # Grab actual/expected upvotes from a random sample of stories. We are
 # defining quality as the ratio of actual/expected upvotes (at that
@@ -13,7 +19,7 @@ library(rethinking)
 # that story. A hierarchical model can help us make better estimates of true
 # quality and differentiate the effect of quality from random noise.
 
-upvotesVSExpected <- dbGetQuery(con, "
+query = glue("
     SELECT
         id,
         sid,
@@ -21,12 +27,14 @@ upvotesVSExpected <- dbGetQuery(con, "
         row_number() over () as sampleNumber,
         max(total_upvotes) as totalUpvotesForStory,
         expectedUpvotes,
-        cumulativeQuality as quality
+        cumulativeQuality as qualityRatio
     FROM 
-        random_sample_100_stories
+        random_sample_{n}_stories
         JOIN quality USING (id)
         GROUP BY id, sid
 ")
+
+samples <- dbGetQuery(con, query)
 
 
 # Pretty simple Bayesian hierarchical model.
@@ -53,7 +61,7 @@ model <- ulam(
         # Average quality should be close to zero, but make this a parameter
         # not a constant to see if the data fits the model as expected.        
         avg_log_quality ~ dnorm(0, 5)
-    ), data=upvotesVSExpected
+    ), data=samples
 )
 precis(model, depth=2)
 
