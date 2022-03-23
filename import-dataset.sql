@@ -126,3 +126,32 @@ create unique index expectedUpvotes_idx on expectedUpvotes(
         dayofweekBin
 );
 
+
+DROP TABLE IF EXISTS expectedUpvotesByRank;
+CREATE TABLE expectedUpvotesByRank AS
+wITH totalUpvotes AS (
+    SELECT sum(gain) AS upvotes FROM dataset WHERE topRank IS NOT NULL
+)
+SELECT 
+    ifnull(topRank, -1) AS rank, 
+    sum(gain) AS upvotes, 
+    count(distinct tick) AS ticks, 
+    CAST(sum(gain) AS real)/totalUpvotes.upvotes AS upvoteShare
+FROM dataset
+JOIN totalUpvotes
+WHERE topRank is not null
+GROUP BY topRank
+ORDER BY topRank;
+CREATE INDEX expectedUpvotesByRank_id on expectedUpvotesByRank(rank);
+
+create table expectedUpvotesByTick as
+SELECT 
+    tick, 
+    sum(gain) AS upvotes
+FROM dataset
+WHERE topRank IS NOT NULL
+GROUP BY tick
+ORDER BY topRank;
+CREATE INDEX expectedUpvotesByTick_id on expectedUpvotesByTick(tick);
+
+

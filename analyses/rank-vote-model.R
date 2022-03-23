@@ -1,6 +1,7 @@
 # Dependencies
 library(DBI)
 
+
 con <- RSQLite::dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
 
 # So my hypothesis is that the number of upvotes at each rank is some fraction
@@ -11,16 +12,8 @@ con <- RSQLite::dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
 # a very good fit.
 
 # First, summarize total upvotes by rank
-upvotesByRank <- dbGetQuery(con,"
-    SELECT 
-        ifnull(topRank, -1) AS rank, 
-        sum(gain) AS upvotes, 
-        count(distinct tick) AS ticks, 
-        cast(sum(gain) AS real)/count(distinct tick) AS upvoteRate
-    FROM dataset
-    where topRank is not null
-    ORDER BY topRank;
-")
+upvotesByRank <- dbGetQuery(con,"select * from expectedUpvotesByRank")
+
 
 # Start by looking at just page 1
 page1upvotesByRank = head(upvotesByRank, 30)
