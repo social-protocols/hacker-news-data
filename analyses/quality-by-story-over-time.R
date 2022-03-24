@@ -1,11 +1,25 @@
 library(ggplot2)
 library(DBI)
+library(glue)
+
+
+# Define a reverse-log scale
+# Thanks to Brian Diggs: https://stackoverflow.com/questions/11053899/how-to-get-a-reversed-log10-scale-in-ggplot2
+
+library("scales")
+reverselog_trans <- function(base = exp(1)) {
+    trans <- function(x) -log(x, base)
+    inv <- function(x) base^(-x)
+    trans_new(paste0("reverselog-", format(base)), trans, inv, 
+              log_breaks(base = base), 
+              domain = c(1e-100, Inf))
+}
+
 
 # Create chart showing the quality of a random selection of stories over time.
-# One chart calculates quality using a simple ratio of
-# upvotes/expectedUpvotes, another uses the Bayesian Averaging formula
-# developed in bayesian-average-quality.R. Outputs two charts with the same
-# random stories.
+# Compare two different ways of calculating quality: 1) the simple ratio of
+# upvotes/expectedUpvotes, and 2) the Bayesian Averaging formula
+# developed in bayesian-average-quality.R. 
 #
 # There are two takeaways. 
 #
@@ -21,22 +35,24 @@ library(DBI)
 # Connect to the sqlite database
 con <- RSQLite::dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
 
-# 
+# For sample stories, compute cumulativeUpvotes and cumulativeExpectedUpvotes by minute, starting with the time
+# the story first appears in the data.
 query = "
     with cumulatives as (
         SELECT
             id
+            , sid
             , tick
             , sampleTime
-            , sampleTime - min(sampleTime) OVER (PARTITION BY id) AS elapsedSeconds
-            , strftime('%Y-%m-%d %H:%m:00', max(sampleTime), 'unixepoch') AS hour
+            , (sampleTime - min(sampleTime) OVER (PARTITION BY id))/60 AS elapsedMinutes
+            , strftime('%Y-%m-%d %H:%m:00', max(sampleTime), 'unixepoch') AS minute
             , sum(gain) AS upvotes
             , topRank AS rank
             , sum(gain) OVER (PARTITION BY id ORDER BY tick ASC ROWS UNBOUNDED PRECEDING) AS cumulativeUpvotes
             , sum(expectedUpvotesByTick.upvotes * upvoteShare) AS expectedUpvotes
             , SUM(expectedUpvotesByTick.upvotes * upvoteShare) OVER (PARTITION BY id ORDER BY tick ROWS UNBOUNDED PRECEDING) cumulativeExpectedUpvotes
         FROM 
-            (SELECT * FROM random_sample_100_stories LIMIT 50)
+            (SELECT * FROM random_sample_100_stories LIMIT 15   )
             JOIN dataset USING (id)
             JOIN expectedUpvotesByTick USING (tick)
             JOIN expectedUpvotesByRank ON rank = topRank
@@ -44,42 +60,86 @@ query = "
         ORDER BY id, tick, sampleTime
     )
     SELECT 
-        id
-        , hour
-        , max(elapsedSeconds) AS elapsedSeconds
+        sid
+        , elapsedMinutes
         , max(rank) AS maxRank
         , max(cumulativeUpvotes) AS cumulativeUpvotes
         , max(cumulativeExpectedUpvotes) AS cumulativeExpectedUpvotes
     FROM cumulatives
-    GROUP BY id, hour
-    ORDER BY id, hour
+    GROUP BY id, elapsedMinutes
+    ORDER BY id, elapsedMinutes
 ";
 
-samples <- dbGetQuery(con, query)
+
+storiesOverTime <- dbGetQuery(con, query)
+
+# Constant found in bayesian-average-quality.R
+constant = 9
+
+# Bayesian average log quality.
+# Important note: add 1 to cumulative expected upvotes, because every story starts with a score of 1.
+storiesOverTime$bayesianAverageLogQuality = log((storiesOverTime$cumulativeUpvotes)/(storiesOverTime$cumulativeExpectedUpvotes+1))*storiesOverTime$cumulativeUpvotes/(storiesOverTime$cumulativeUpvotes+constant)
+
+storiesOverTime$logQualityRatio = log((storiesOverTime$cumulativeUpvotes)/(storiesOverTime$cumulativeExpectedUpvotes+1))
+
+ymax = max(storiesOverTime$logQualityRatio)
+ymin = min(storiesOverTime$logQualityRatio)
+
+ggplot(
+    storiesOverTime[ storiesOverTime$elapsedMinutes < 200, ], 
+    aes(
+        x = elapsedMinutes,
+        y = bayesianAverageLogQuality,
+        group=sid, 
+        color=factor(sid), 
+        alpha=cumulativeUpvotes
+    )
+) + 
+scale_alpha_continuous(range = c(.1, .7), trans="log10") +  
+geom_line() + 
+geom_point(
+    aes(
+        alpha=cumulativeUpvotes, 
+        size=maxRank
+    )
+) +
+scale_size(
+  trans = reverselog_trans(2),
+  range = c(1,4)
+) +
+ylim(ymin, ymax)
 
 
-# Weight by cumulative upvotes
-samples$bayesianAverageLogQuality = log(samples$cumulativeUpvotes/samples$cumulativeExpectedUpvotes)*samples$cumulativeUpvotes/(samples$cumulativeUpvotes+3)
+ggsave(file = glue("plots/bayesian-average-quality-over-time (contant={constant}).png"), width=13, height=7)
 
 
-# Weight by cumulative expected upvotes
-samples$bayesianAverageLogQuality = log(samples$cumulativeUpvotes/samples$cumulativeExpectedUpvotes)*samples$cumulativeExpectedUpvotes/(samples$cumulativeExpectedUpvotes+3)
+ggplot(
+    storiesOverTime[ storiesOverTime$elapsedMinutes < 200, ], 
+    aes(
+        x = elapsedMinutes,
+        y = logQualityRatio,
+        group=sid, 
+        color=factor(sid), 
+        alpha=cumulativeUpvotes
+    )
+) + 
+scale_alpha_continuous(range = c(.1, .7), trans="log10") +  
+geom_line() + 
+geom_point(
+    aes(
+        alpha=cumulativeUpvotes, 
+        size=maxRank
+    )
+) +
+scale_size(
+  trans = reverselog_trans(2),
+  range = c(1,4)
+) +
+ylim(ymin, ymax)
 
-samples$logQualityRatio = log(samples$cumulativeUpvotes/samples$cumulativeExpectedUpvotes)
 
-
-samples = samples [ samples$logQualityRatio > -Inf, ]
-
-ymax = max(samples$logQualityRatio)
-ymin = min(samples$logQualityRatio)
+ggsave(file = "plots/quality-ratio-over-time.png", width=13, height=7)
 
 
 
-ggplot(samples, aes(x = elapsedSeconds, y = bayesianAverageLogQuality, group=id, color=factor(id))) +  geom_line() + geom_point(aes(color = factor(id))) + ylim(ymin, ymax)
-ggsave(file = "plots/bayesian-average-quality-over-time.png", height = 5, width = 10)
-
-
-
-ggplot(samples, aes(x = elapsedSeconds, y = logQualityRatio, group=id, color=factor(id))) +  geom_line() + geom_point(aes(color = factor(id))) + ylim(ymin, ymax)
-ggsave(file = "plots/quality-ratio-over-time.png", height = 5, width = 10)
 
