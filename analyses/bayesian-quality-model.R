@@ -34,7 +34,7 @@ query = glue("
         GROUP BY id, sid
 ")
 
-samples <- dbGetQuery(con, query)
+stories <- dbGetQuery(con, query)
 
 
 # Pretty simple Bayesian hierarchical model.
@@ -47,7 +47,7 @@ model <- ulam(
         # both a story-specific quality (indexed by sid) and an overall average quality across
         # all stories, which should be very close to 1 by definition (so log quality should be 
         # close to zero).
-        lambda <- exp(log_quality[sid] + avg_log_quality)*expectedUpvotes,
+        lambda <- exp(log_quality[sid] + avg_log_quality)*(expectedUpvotes+1),
 
         # Key to the model. Each story (indexed by sid) has a log quality
         # drawn from a normal distribution. This means for example that a
@@ -61,7 +61,7 @@ model <- ulam(
         # Average quality should be close to zero, but make this a parameter
         # not a constant to see if the data fits the model as expected.        
         avg_log_quality ~ dnorm(0, 5)
-    ), data=samples
+    ), data=stories
 )
 precis(model, depth=2)
 
