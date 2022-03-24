@@ -28,7 +28,7 @@ reverselog_trans <- function(base = exp(1)) {
 # clearly level out at different levels of quality.
 #
 # 2) The Bayesian average moves closer to a stable value more quickly. Comparing the two charts
-# the big differences are on the left side of the graph, when a story is new and the number of upvotes are small.
+# the big differences are on the left storyNumbere of the graph, when a story is new and the number of upvotes are small.
 # Bayesian averaging brings these values in towards the average of zero -- which is closer to the "true" value that
 # they stabilize at over time.
 
@@ -41,7 +41,7 @@ query = "
     with cumulatives as (
         SELECT
             id
-            , sid
+            , sid as storyNumber
             , tick
             , sampleTime
             , (sampleTime - min(sampleTime) OVER (PARTITION BY id))/60 AS elapsedMinutes
@@ -60,9 +60,9 @@ query = "
         ORDER BY id, tick, sampleTime
     )
     SELECT 
-        sid
+        storyNumber
         , elapsedMinutes
-        , max(rank) AS maxRank
+        , max(rank) AS rank
         , max(cumulativeUpvotes) AS cumulativeUpvotes
         , max(cumulativeExpectedUpvotes) AS cumulativeExpectedUpvotes
     FROM cumulatives
@@ -90,8 +90,8 @@ ggplot(
     aes(
         x = elapsedMinutes,
         y = bayesianAverageLogQuality,
-        group=sid, 
-        color=factor(sid), 
+        group=storyNumber, 
+        color=factor(storyNumber), 
         alpha=cumulativeUpvotes
     )
 ) + 
@@ -100,7 +100,7 @@ geom_line() +
 geom_point(
     aes(
         alpha=cumulativeUpvotes, 
-        size=maxRank
+        size=rank
     )
 ) +
 scale_size(
@@ -118,8 +118,8 @@ ggplot(
     aes(
         x = elapsedMinutes,
         y = logQualityRatio,
-        group=sid, 
-        color=factor(sid), 
+        group=storyNumber, 
+        color=factor(storyNumber), 
         alpha=cumulativeUpvotes
     )
 ) + 
@@ -128,7 +128,7 @@ geom_line() +
 geom_point(
     aes(
         alpha=cumulativeUpvotes, 
-        size=maxRank
+        size=rank
     )
 ) +
 scale_size(
