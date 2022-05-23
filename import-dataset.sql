@@ -126,3 +126,58 @@ create unique index expectedUpvotes_idx on expectedUpvotes(
         dayofweekBin
 );
 
+
+-- DROP TABLE IF EXISTS averageUpvotesByTopRank;
+-- CREATE TABLE averageUpvotesByTopRank AS
+-- WITH totalUpvotes AS (
+--     SELECT sum(gain) AS upvotes FROM dataset WHERE topRank IS NOT NULL
+-- )
+-- SELECT 
+--     ifnull(topRank, -1) AS rank, 
+--     sum(gain) AS upvotes, 
+--     max(sampleTime) as maxTime,
+--     min(sampleTime) as minTime,
+--     max(sampleTime) - min(sampleTime) as elapsedTime,
+--     CAST(sum(gain) AS real)/totalUpvotes.upvotes AS upvoteShare
+-- FROM dataset
+-- JOIN totalUpvotes
+-- WHERE topRank is not null
+-- GROUP BY topRank
+-- ORDER BY topRank;
+-- CREATE INDEX averageUpvotesByTopRank_id on averageUpvotesByTopRank(rank);
+
+
+
+
+
+-- DROP TABLE IF EXISTS averageUpvotesByNewRank;
+-- CREATE TABLE averageUpvotesByNewRank AS
+-- wITH totalUpvotes AS (
+--     SELECT sum(gain) AS upvotes FROM dataset WHERE newRank IS NOT NULL
+-- )
+-- SELECT 
+--     ifnull(newRank, -1) AS rank, 
+--     sum(gain) AS upvotes, 
+--     max(sampleTime) - min(sampleTime) as elapsedTime,
+--     CAST(sum(gain) AS real)/totalUpvotes.upvotes AS upvoteShare
+-- FROM fullstories 
+-- JOIN dataset using (id)
+-- JOIN totalUpvotes
+-- WHERE newRank is not null
+-- GROUP BY newRank
+-- ORDER BY newRank;
+-- CREATE INDEX averageUpvotesByNewRank_id on averageUpvotesByNewRank(rank);
+
+
+
+create table upvotesByTick as
+SELECT 
+    tick, 
+    sum(gain) AS upvotes
+FROM dataset
+WHERE topRank IS NOT NULL
+GROUP BY tick
+ORDER BY topRank;
+CREATE INDEX upvotesByTick_id on upvotesByTick(tick);
+
+
