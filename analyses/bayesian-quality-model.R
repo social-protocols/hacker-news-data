@@ -1,6 +1,7 @@
 library(DBI)
 library(rethinking)
 library(glue)
+library(rstan)
 
 
 # Connect to the sqlite database
@@ -10,7 +11,7 @@ con <- RSQLite::dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
 # with a bunch of utility methods, wrappers around STAN.
 
 # Sample size THere needs to be a corresponding random sample table. (e.g. if n=1000, random_sample_1000_stories)
-n <- 1000
+n <- 100
 
 # Grab actual/expected upvotes from a random sample of stories. We are
 # defining quality as the ratio of actual/expected upvotes (at that
@@ -19,49 +20,58 @@ n <- 1000
 # that story. A hierarchical model can help us make better estimates of true
 # quality and differentiate the effect of quality from random noise.
 
-query = glue("
-    SELECT
-        id,
-        sid,
-        upvotes,
-        row_number() over () as sampleNumber,
-        max(total_upvotes) as totalUpvotesForStory,
-        expectedUpvotes,
-        cumulativeQuality as qualityRatio
-    FROM 
-        random_sample_{n}_stories
-        JOIN quality USING (id)
-        GROUP BY id, sid
-")
-
-samples <- dbGetQuery(con, query)
-
-
-# Pretty simple Bayesian hierarchical model.
-model <- ulam(
-    alist(
-        upvotes ~ dpois(lambda),
-
-        # The rate that votes arrive is equal to the expected upvotes (at this time/rank)
-        # times quality. The formula below is quality*avg_quality*expectedUpvotes. We include
-        # both a story-specific quality (indexed by sid) and an overall average quality across
-        # all stories, which should be very close to 1 by definition (so log quality should be 
-        # close to zero).
-        lambda <- exp(log_quality[sid] + avg_log_quality)*expectedUpvotes,
-
-        # Key to the model. Each story (indexed by sid) has a log quality
-        # drawn from a normal distribution. This means for example that a
-        # story getting 2x as many votes as expected is as common as one
-        # getting 1/2x as many (ln 2 = - ln 1/2 = .693).
-        log_quality[sid] ~ dnorm(0, sigma_quality),
-
-        # Super weak prior on the standard deviation of quality.
-        sigma_quality ~ dunif(0, 5),
-
-        # Average quality should be close to zero, but make this a parameter
-        # not a constant to see if the data fits the model as expected.        
-        avg_log_quality ~ dnorm(0, 5)
-    ), data=samples
+createExpectedUpvotesByIdAndRank = glue("
+create table expectedUpvotesByIdAndRank as
+with total as (
+    select sum(upvoteRate) as upvoteRate from homepageUpvoteRateByRank 
 )
+    SELECT 
+      sid, 
+      topRank rank,
+      count(dataset.tick) as ticks,
+      count(dataset.tick)*60 as timeAtRank,
+      sum(gain) as upvotes,
+      sum(upvotesByTick.upvotes) sitewideUpvotes,
+      homepageUpvoteRateByRank.upvoteRate as upvoteRateAtRank,
+      total.upvoteRate as totalUpvoteRate,
+      cast(homepageUpvoteRateByRank.upvoteRate as float)/total.upvoteRate as upvoteShareAtRank,
+      sum(upvotesByTick.upvotes)*cast(homepageUpvoteRateByRank.upvoteRate as float)/total.upvoteRate as expectedUpvotes
+    FROM 
+      dataset
+      JOIN 
+      random_sample_{n}_stories using (id)
+      JOIN homepageUpvoteRateByRank on (rank = topRank)
+      JOIN upvotesByTick using (tick)
+      JOIN total
+    WHERE 
+      topRank IS NOT NULL
+    GROUP BY sid, rank
+    ORDER BY sid, rank
+;
+")
+dbExecute(con, createExpectedUpvotesByIdAndRank)
+
+query = "
+    select sid, rank, timeAtRank, upvotes, expectedUpvotes
+    from expectedUpvotesByIdAndRank
+"
+
+stories <- dbGetQuery(con, query)
+
+
+model <- stan(
+  file = "bayesian-quality-model.stan",  # Stan program
+  data = list(rank=stories$rank, expectedUpvotes=stories$expectedUpvotes, upvotes=stories$upvotes, sid=stories$sid),    # named list of data
+  chains = 2,             # number of Markov chains
+  warmup = 500,           # number of warmup iterations per chain
+  iter = 1000,            # total number of iterations per chain
+  cores = 2,              # number of cores (could use one per chain)
+  refresh = 0             # no progress shown
+)
+
 precis(model, depth=2)
+
+
+
+
 
