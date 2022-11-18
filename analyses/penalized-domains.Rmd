@@ -1,0 +1,106 @@
+---
+title: "Penalized Domains"
+output: html_document
+date: "2022-11-18"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(httr)
+library(DBI)
+library(urltools)
+
+conn <- dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
+
+story_urls <- 
+  readr::read_delim(
+    "../data/hacker-news-urls.csv",
+    col_names = c("idx", "id", "url"),
+    delim = ",",
+    skip = 1) %>%
+  select(-idx)
+```
+
+
+```{r}
+# sample_stories <- sample(fullstories_ids, 1000)
+
+samp <-
+  tbl(conn, "dataset") %>% 
+  inner_join(tbl(conn, "fullstories"), by = "id") %>% 
+  filter(
+    # id %in% sample_stories,
+    !is.na(topRank),
+    sampleTime >= 1637705407 + 604800,
+    sampleTime <= 1637705407 + 4838400
+  ) %>% 
+  data.frame() %>% 
+  left_join(story_urls, by = "id") %>% 
+  filter(!is.null(url)) %>%
+  mutate(ageHours = (sampleTime - submissionTime) / 60 / 60) %>% 
+  mutate(hnScore = ((score - 1)^0.8) / ((ageHours + 2)^1.8)) %>% 
+  mutate(domain = domain(url)) %>% 
+  arrange(sampleTime, desc(hnScore)) %>% 
+  group_by(sampleTime) %>% 
+  mutate(expectedTopRank = row_number()) %>% 
+  ungroup() %>% 
+  mutate(
+    rankPenalty = expectedTopRank - topRank,
+    hasRankPenalty = rankPenalty < 0
+  )
+
+
+rank_penalty_ratios <- 
+  samp %>% 
+  arrange(sampleTime, desc(hnScore)) %>% 
+  select(id, domain, hasRankPenalty) %>% 
+  distinct() %>% 
+  group_by(domain, hasRankPenalty) %>% 
+  summarize(count = n()) %>% 
+  ungroup() %>% 
+  pivot_wider(
+    id_cols = c("domain"),
+    names_from = "hasRankPenalty",
+    names_prefix = "hasRankPenalty",
+    values_from = "count"
+  ) %>% 
+  replace_na(list("hasRankPenaltyTRUE" = 0, "hasRankPenaltyFALSE" = 0)) %>% 
+  mutate(
+    domainOccurrences = hasRankPenaltyTRUE + hasRankPenaltyFALSE,
+    hasRankPenaltyPercentage = hasRankPenaltyTRUE / domainOccurrences
+  ) %>% 
+  filter(domainOccurrences >= 10) %>% 
+  arrange(desc(hasRankPenaltyPercentage)) %>% 
+  tibble()
+
+
+# also check for number of comments  
+
+samp %>% 
+  mutate(over40Comments = descendants >= 40) %>% 
+  select(id, over40Comments, hasRankPenalty) %>% 
+  distinct() %>% 
+  group_by(over40Comments, hasRankPenalty) %>% 
+  summarize(count = n()) %>%
+  ungroup() %>% 
+  pivot_wider(
+    id_cols = c("over40Comments"),
+    names_from = "hasRankPenalty",
+    names_prefix = "hasRankPenalty",
+    values_from = "count"
+  ) %>% 
+  mutate(
+    hasRankPenaltyPercentage =
+      hasRankPenaltyTRUE / (hasRankPenaltyTRUE + hasRankPenaltyFALSE)
+  )
+
+
+```
+
+
+```{r}
+dbDisconnect(conn)
+```
+
