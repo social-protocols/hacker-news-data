@@ -11,6 +11,7 @@ library(tidyr)
 library(httr)
 library(DBI)
 library(urltools)
+library(ggplot2)
 
 conn <- dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
 
@@ -20,8 +21,363 @@ story_urls <-
     col_names = c("idx", "id", "url"),
     delim = ",",
     skip = 1) %>%
-  select(-idx)
+  select(-idx) %>% 
+  mutate(domain = domain(url)) %>% 
+  mutate(id = as.integer(id))
+
+
+
 ```
+
+
+
+```{r}
+dbWriteTable(conn, "storyDomains", story_urls, overwrite = TRUE)
+```
+
+
+```{r}
+tbc(conn, "storyDomains") %>% 
+  select
+```
+
+
+
+```{r}
+second_chance_pool_ids <- 
+  tbl(conn, "dataset") %>% 
+  filter(!is.null(topRank)) %>% 
+  mutate(
+    ageHours = (sampleTime - submissionTime) / 60 / 60,
+    hnScore = ((score - 1)^0.8) / ((ageHours + 2)^1.8)
+  ) %>% 
+  select(tick, id, score, ageHours, hnScore, topRank) %>% 
+  mutate(ageHoursSq = ageHours * ageHours) %>% 
+  left_join(
+    tbl(conn, "dataset") %>% 
+      filter(topRank >= 61) %>% 
+      mutate(
+        ageHours = (sampleTime - submissionTime) / 60 / 60,
+        hnScore = ((score - 1)^0.8) / ((ageHours + 2)^1.8)
+      ) %>% 
+      group_by(tick) %>% 
+      summarize(lowestScoreOnPage3 = min(hnScore)) %>% 
+      ungroup(),
+    by = "tick"
+  ) %>% 
+  filter(hnScore < lowestScoreOnPage3) %>% 
+  select(id) %>% 
+  distinct() %>% 
+  show_query()
+
+second_chance_pool_ids
+
+dbExecute(conn, "
+create table secondChancePool 
+as (
+SELECT DISTINCT `id`
+FROM (
+  SELECT
+    `LHS`.`tick` AS `tick`,
+    `id`,
+    `score`,
+    `ageHours`,
+    `hnScore`,
+    `topRank`,
+    `ageHoursSq`,
+    `lowestScoreOnPage3`
+  FROM (
+    SELECT *, `ageHours` * `ageHours` AS `ageHoursSq`
+    FROM (
+      SELECT
+        `tick`,
+        `id`,
+        `score`,
+        `ageHours`,
+        (POWER((`score` - 1.0), 0.8)) / (POWER((`ageHours` + 2.0), 1.8)) AS `hnScore`,
+        `topRank`
+      FROM (
+        SELECT
+          *,
+          ((`sampleTime` - `submissionTime`) / 60.0) / 60.0 AS `ageHours`
+        FROM `dataset`
+        WHERE (NOT((`topRank` IS NULL)))
+      )
+    )
+  ) AS `LHS`
+  LEFT JOIN (
+    SELECT `tick`, MIN(`hnScore`) AS `lowestScoreOnPage3`
+    FROM (
+      SELECT
+        *,
+        (POWER((`score` - 1.0), 0.8)) / (POWER((`ageHours` + 2.0), 1.8)) AS `hnScore`
+      FROM (
+        SELECT
+          *,
+          ((`sampleTime` - `submissionTime`) / 60.0) / 60.0 AS `ageHours`
+        FROM `dataset`
+        WHERE (`topRank` >= 61.0)
+      )
+    )
+    GROUP BY `tick`
+  ) AS `RHS`
+    ON (`LHS`.`tick` = `RHS`.`tick`)
+)
+WHERE (`hnScore` < `lowestScoreOnPage3`)
+)
+")
+
+```
+
+
+```{r}
+start_tick <- 1
+step_size <- 100000
+
+rank_penalty_ratios <- 
+    tbl(conn, "dataset") %>% 
+    filter(
+      !is.na(topRank)
+    ) %>% 
+    left_join(tbl(conn, "storyDomains") %>% select(id, domain), by = "id") %>% 
+    mutate(
+      ageHours = (sampleTime - submissionTime) / 60 / 60,
+      hnScore = ((score - 1)^0.8) / ((ageHours + 2)^1.8)
+    ) %>% 
+    anti_join(tbl(conn, "secondChancePool"), by = "id") %>% 
+    arrange(sampleTime, topRank) %>% 
+    mutate(cleanedTopRank = row_number()) %>% 
+    ungroup() %>% 
+    arrange(sampleTime, desc(hnScore)) %>% 
+    group_by(sampleTime) %>% 
+    mutate(expectedTopRank = row_number()) %>% 
+    ungroup() %>% 
+    mutate(
+      rankPenalty = expectedTopRank - cleanedTopRank,
+      hasRankPenalty = rankPenalty < 0
+    ) %>% 
+    select(id, domain, hasRankPenalty) %>% 
+    distinct() %>% 
+    group_by(domain, hasRankPenalty) %>% 
+    summarize(count = n()) %>% 
+    ungroup() %>% 
+    data.frame() %>% 
+    pivot_wider(
+      id_cols = c("domain"),
+      names_from = "hasRankPenalty",
+      names_prefix = "hasRankPenalty",
+      values_from = "count"
+    ) %>%
+    replace_na(list("hasRankPenalty1" = 0, "hasRankPenalty0" = 0)) %>% 
+    mutate(
+      domainOccurrences = hasRankPenalty1 + hasRankPenalty0,
+      hasRankPenaltyPercentage = hasRankPenalty1 / domainOccurrences
+    ) %>% 
+    arrange(desc(hasRankPenaltyPercentage)) %>% 
+    tibble()
+  
+  # rank_penalty_ratios <- 
+  #   rank_penalty_ratios %>% 
+  #   bind_rows(samp) %>% 
+  #   group_by(domain) %>% 
+  #   summarize(
+  #     hasRankPenaltyFALSE = sum(hasRankPenaltyFALSE),
+  #     hasRankPenaltyTRUE = sum(hasRankPenaltyTRUE)
+  #   ) %>% 
+  #   ungroup()
+  # 
+# }
+
+# rank_penalty_ratios <- 
+#   rank_penalty_ratios %>%
+#   replace_na(list("hasRankPenaltyTRUE" = 0, "hasRankPenaltyFALSE" = 0)) %>% 
+#   mutate(
+#     domainOccurrences = hasRankPenaltyTRUE + hasRankPenaltyFALSE,
+#     hasRankPenaltyPercentage = hasRankPenaltyTRUE / domainOccurrences
+#   ) %>% 
+#   arrange(desc(hasRankPenaltyPercentage)) %>% 
+#   tibble()
+
+```
+
+```{r}
+dbWriteTable(conn, "domainPenalties", rank_penalty_ratios)
+```
+
+
+```{r}
+rank_penalty_ratios %>% 
+  arrange(desc(hasRankPenaltyPercentage), desc(domainOccurrences))
+```
+
+
+The following query implements a heuristic to find the most likely candidates for domain penalties:
+
+```{sql}
+with hnScores as (
+    select 
+        *
+        , cast(sampleTime - submissionTime as real)/3600 as ageHours
+        , pow(score-1, 0.8) / pow(cast(sampleTime - submissionTime as real)/3600+2, 1.8) as hnScore, secondChancePool.id is not null as scp
+    from dataset
+    left outer join secondChancePool using(id)
+    left outer join storyDomains using(id)
+),
+penalties as (
+    select 
+        id
+        , topRank
+        , score as votes
+        , hnScore
+        , domain
+        , 1 - min(hnScore) filter (where scp = 0 and ageHours < 24 and topRank is not null) over (partition by sampleTime order by topRank rows unbounded preceding) / hnScore as penalty
+    from hnScores
+    where topRank is not null
+    and topRank > 1
+    and domain is not null
+    limit 1000000
+)
+select 
+    domain
+    , count(*) as c
+    , avg(penalty) avgPenalty
+    , min(penalty) minPenalty
+    , max(penalty) maxPenalty
+from penalties
+where penalty >= 0
+group by domain
+order by avgPenalty desc
+```
+
+
+
+```{r}
+penalty_candidates <- 
+  rank_penalty_ratios %>% 
+  filter(domainOccurrences >= 10, hasRankPenaltyPercentage == 1) %>% 
+  arrange(desc(domainOccurrences))
+```
+
+
+```{r}
+penalized_domains <- 
+  rank_penalty_ratios %>% 
+  filter(domainOccurrences >= 10, hasRankPenaltyPercentage == 1) %>% 
+  arrange(desc(domainOccurrences)) %>% 
+  select(domain) %>% 
+  mutate(isPenalizedDomain = TRUE)
+
+
+story_urls %>% 
+  mutate(domain = domain(url)) %>% 
+  left_join(penalized_domains, by = "domain") %>% 
+  replace_na(list("isPenalizedDomain" = FALSE)) %>% 
+  select(id, domain, isPenalizedDomain) %>% 
+  group_by(isPenalizedDomain) %>% 
+  summarize(count = n()) %>% 
+  ungroup() %>% 
+  pivot_wider(
+    names_from = "isPenalizedDomain",
+    names_prefix = "isPenalizedDomain",
+    values_from = "count"
+  ) %>% 
+  mutate(
+    overallStoryCount = isPenalizedDomainFALSE + isPenalizedDomainTRUE,
+    penalizedDomainsPercentage = isPenalizedDomainTRUE / overallStoryCount
+  ) %>% 
+  select(penalizedDomainsPercentage)
+  
+```
+
+
+```{r}
+domain_penalized_story_candidates <- 
+  story_urls %>% 
+  mutate(domain = domain(url)) %>% 
+  select(id, domain) %>% 
+  inner_join(penalized_domains %>% select(domain), by = "domain")
+
+
+domain_penalized_story_candidates %>% 
+  group_by(domain) %>% 
+  summarize(count = n()) %>% 
+  ungroup() %>% 
+  arrange(desc(count))
+```
+
+```{r}
+max_tick <-
+  dbGetQuery(conn, "
+    SELECT max(tick) as maxTick
+    FROM dataset
+  ") %>%
+  pull(maxTick) %>%
+  max()
+
+step_size <- 10000
+
+guardian_stories <- 
+  domain_penalized_story_candidates %>%
+  # filter(domain == "www.theguardian.com") %>% 
+  filter(domain == "arstechnica.com") %>% 
+  select(id)
+
+proportionality_estimation <- data.frame()
+
+for (start_tick in seq(1, max_tick, step_size)) {
+  
+  start_tick <- 1
+  
+  samp <- 
+    tbl(conn, "dataset") %>% 
+    filter(
+      tick >= start_tick,
+      tick < start_tick + step_size
+    ) %>% 
+    filter(!is.na(topRank)) %>% 
+    mutate(ageHours = (sampleTime - submissionTime) / 60 / 60) %>% 
+    mutate(hnScore = ((score - 1)^0.8) / ((ageHours + 2)^1.8)) %>% 
+    arrange(tick, topRank) %>% 
+    group_by(tick) %>% 
+    mutate(
+      firstHigherRankHNScore = lag(hnScore),
+      firstLowerRankHNScore = lead(hnScore)
+    ) %>% 
+    ungroup() %>% 
+    select(
+      tick, id, topRank, hnScore, firstHigherRankHNScore, firstLowerRankHNScore
+    ) %>% 
+    data.frame() %>%  # perhaps move up if viable to avoid weird sql translation errors
+    inner_join(guardian_stories, by = "id")
+  
+  proportionality_estimation <- 
+    proportionality_estimation %>% bind_rows(samp)
+}
+
+```
+
+```{r}
+proportionality_estimation %>% 
+  filter(firstHigherRankHNScore > firstLowerRankHNScore) %>%
+  mutate(
+    lower = firstLowerRankHNScore / hnScore,
+    upper = firstHigherRankHNScore / hnScore
+  ) %>% 
+  pivot_longer(
+    cols = c("lower", "upper"),
+    names_to = "estimateType",
+    values_to = "estimate"
+  ) %>% 
+  ggplot(aes(x = estimate, y = as.factor(id), color = estimateType)) +
+  geom_point(alpha = 0.05)
+
+
+proportionality_estimation %>% 
+  select(id) %>% 
+  distinct()
+```
+
+
 
 
 ```{r}
@@ -76,8 +432,7 @@ rank_penalty_ratios <-
   tibble()
 
 
-# also check for number of comments  
-
+# check for number of comments  
 samp %>% 
   mutate(over40Comments = descendants >= 40) %>% 
   select(id, over40Comments, hasRankPenalty) %>% 
@@ -98,6 +453,23 @@ samp %>%
 
 
 ```
+
+```{r}
+domain_distribution <- 
+  story_urls %>% 
+  mutate(domain = domain(url)) %>% 
+  group_by(domain) %>% 
+  summarize(count = n()) %>% 
+  ungroup() %>% 
+  arrange(desc(count)) %>% 
+  tibble()
+
+domain_distribution %>% 
+  ggplot(aes(x = count)) +
+  geom_histogram(binwidth = 1) +
+  scale_x_continuous(limits = c(0, 100))
+```
+
 
 
 ```{r}
