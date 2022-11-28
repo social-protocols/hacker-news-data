@@ -12,18 +12,19 @@ library(httr)
 library(DBI)
 library(urltools)
 library(ggplot2)
+library(zoo)
 
 conn <- dbConnect(RSQLite::SQLite(), "../data/hacker-news.sqlite")
 
-story_urls <- 
-  readr::read_delim(
-    "../data/hacker-news-urls.csv",
-    col_names = c("idx", "id", "url"),
-    delim = ",",
-    skip = 1) %>%
-  select(-idx) %>% 
-  mutate(domain = domain(url)) %>% 
-  mutate(id = as.integer(id))
+# story_urls <- 
+#   readr::read_delim(
+#     "../data/hacker-news-urls.csv",
+#     col_names = c("idx", "id", "url"),
+#     delim = ",",
+#     skip = 1) %>%
+#   select(-idx) %>% 
+#   mutate(domain = domain(url)) %>% 
+#   mutate(id = as.integer(id))
 
 
 
@@ -468,6 +469,153 @@ domain_distribution %>%
   ggplot(aes(x = count)) +
   geom_histogram(binwidth = 1) +
   scale_x_continuous(limits = c(0, 100))
+```
+
+
+```{r}
+tbl(conn, "domainPenalties2") %>% 
+  group_by(id) %>% 
+  summarize(
+    domain = max(domain),
+    minPenalty = min(penalty),
+    maxPenalty = max(penalty),
+    avgPenalty = mean(penalty),
+    sampleCount = n()
+  ) %>%
+  ungroup() -> summaryPenaltiesSql 
+
+
+summaryPenaltiesSql %>% 
+  group_by(domain) %>%
+  summarize(nSampleCount = n()) %>%
+  ungroup() %>%
+  arrange(desc(nSampleCount)) %>% 
+  head(20) -> top20Sql
+
+summaryPenaltiesSql %>% 
+  inner_join(top20Sql %>% select(domain), by = "domain") %>% 
+  filter(minPenalty > 0) %>% 
+  # pivot_longer(
+  #   cols = c("minPenalty", "avgPenalty", "maxPenalty"),
+  #   names_to = "metric",
+  #   values_to = "value"
+  # ) %>% 
+  ggplot(aes(x = avgPenalty)) + 
+    geom_histogram() +
+    facet_wrap(. ~ domain, nrow = 20, scales = "free_y")
+
+ggsave("avgPenalties.png", height = 20, width = 5)
+```
+
+
+```{r}
+summaryPenaltiesSql %>% 
+  mutate(penaltyDiff = round(maxPenalty - avgPenalty, 3)) %>% 
+  data.frame() %>% 
+  sample_n(10)
+  # arrange(desc(sampleCount)) %>% 
+  arrange(desc(penaltyDiff)) %>% 
+  identity()
+```
+
+
+```{r}
+tbl(conn, "domainPenalties2") %>% 
+  filter(descendants > 100) %>% 
+  group_by(id) %>% 
+  summarize(
+    maxDescendants = max(descendants),
+    nSamples = n()
+  ) %>% 
+  ungroup()
+```
+
+
+```{r}
+tbl(conn, "domainPenalties2") %>% 
+  group_by(id) %>% 
+  mutate(
+    avgPenalty = mean(penalty),
+    
+  )
+  filter(descendants > 400) %>% 
+```
+
+
+```{r}
+sample_id <- 29905630
+sample_id <- 29348978
+sample_id <- 29680861
+sample_id <- 29324551  # many comments, many samples
+sample_id <- 30087783
+
+tbl(conn, "domainPenalties2") %>% 
+  filter(id == sample_id) %>% 
+  filter(!is.na(penalty)) %>%
+  mutate(relTime = (sampleTime - min(sampleTime)) / 3600) %>% 
+  data.frame() %>% 
+  arrange(sampleTime) %>% 
+  mutate(rollingMean = rollmean(penalty, k = 100, fill = NA)) %>% 
+  pivot_longer(
+    cols = c("penalty", "rollingMean"), 
+    names_to = "name",
+    values_to = "value"
+  ) %>% 
+  ggplot(aes(x = relTime, y = value, color = name)) +
+   geom_point()
+
+
+tbl(conn, "domainPenalties2") %>% 
+  filter(id == sample_id) %>% 
+  mutate(relTime = (sampleTime - min(sampleTime)) / 3600) %>% 
+  ggplot(aes(x = relTime, y = topRank)) +
+    geom_point() +
+    scale_y_continuous(trans = "reverse")
+
+
+tbl(conn, "domainPenalties2") %>% 
+  filter(id == sample_id) %>% 
+  mutate(relTime = (sampleTime - min(sampleTime)) / 3600) %>% 
+  ggplot(aes(x = relTime, y = descendants)) +
+    geom_point()
+```
+
+
+```{sql}
+drop table if exists domainPenalties2;
+
+create table domainPenalties2
+as
+with hnScores as (
+    select 
+        *
+        , cast(sampleTime - submissionTime as real)/3600 as ageHours
+        , pow(score-1, 0.8) / pow(cast(sampleTime - submissionTime as real)/3600+2, 1.8) as hnScore, secondChancePool.id is not null as scp
+    from dataset
+    left outer join secondChancePool using(id)
+    left outer join storyDomains using(id)
+    join fullstories using(id)
+),
+penalties as (
+    select 
+        id
+        , topRank
+        , score as votes
+        , hnScore
+        , domain
+        , sampleTime
+        , descendants
+        , 1 - min(hnScore) filter (where scp = 0 and ageHours < 24 and topRank is not null) over (partition by sampleTime order by topRank rows unbounded preceding) / hnScore as penalty
+    from hnScores
+    where topRank is not null
+    and topRank > 1
+    and domain is not null
+)
+select 
+    *
+from penalties;
+
+create index domain_penalties_2_id_index on `domainPenalties2`(id, domain, penalty);
 ```
 
 
